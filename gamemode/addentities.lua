@@ -7,6 +7,15 @@ AddEntity("Drug lab", {
 	allowed = {TEAM_BGANG, TEAM_BLEADER, TEAM_CLEADER, TEAM_CGANG}
 })
 
+AddEntity("Microwave", {
+	ent = "microwave",
+	model = "models/props/cs_office/microwave.mdl",
+	price = 400,
+	max = 1,
+	cmd = "/buymicrowave",
+	allowed = {TEAM_COOK}
+})
+
 AddEntity("Gun lab", {
 	ent = "gunlab",
 	model = "models/props_c17/TrapPropeller_Engine.mdl",
@@ -16,8 +25,8 @@ AddEntity("Gun lab", {
 	allowed = {TEAM_GUN}
 })
 
--- Gemstone Printers
- 
+--- Gemstone Printers
+
 AddEntity("Topaz Printer", {
         ent = "topaz_money_printer",
         model = "models/props_c17/consolebox01a.mdl",
@@ -59,6 +68,7 @@ AddEntity("Sapphire Printer", {
         cmd = "/buysapphire",
         customCheck = function(ply) return ply:GetUserGroup() == "Donator" or ply:IsAdmin() end,
 })
+
 -- ADD CUSTOM SHIPMENTS HERE(next line):
 -- CS:S Realistic Weps
 AddCustomShipment("M249", "models/weapons/w_mach_m249para.mdl", "weapon_real_cs_m249", 6000, 10, false, 0, false, {TEAM_GUN})
@@ -87,7 +97,6 @@ AddCustomShipment("USP", "models/weapons/w_pist_usp.mdl", "weapon_real_cs_usp", 
 AddCustomShipment("P228", "models/weapons/w_pist_p228.mdl", "weapon_real_cs_p228", 2100, 10, true, 220, false, {TEAM_GUN})
 AddCustomShipment("Glock", "models/weapons/w_pist_glock18.mdl", "weapon_real_cs_glock18", 2000, 10, true, 210, false, {TEAM_GUN})
 AddCustomShipment("FiveSeven", "models/weapons/w_pist_fiveseven.mdl", "weapon_real_cs_five-seven", 1900, 10, true, 200, false, {TEAM_GUN})
-
 --Drugz
 AddCustomShipment("Alcohol", "models/drug_mod/alcohol_can.mdl", "durgz_alcohol", 500, 5, false, 0, false, {TEAM_BAR})
 AddCustomShipment("Asprin", "models/jaanus/aspbtl.mdl", "durgz_asprin", 500, 5, false, 0, false, {TEAM_MEDIC})
@@ -98,7 +107,7 @@ AddCustomShipment("LSD", "models/smile/smile.mdl", "durgz_lsd", 500, 5, false, 0
 AddCustomShipment("Mushrooms", "models/ipha/mushroom_small.mdl", "durgz_mushroom", 500, 5, false, 0, false, {TEAM_DRUG})
 AddCustomShipment("Water", "models/drug_mod/the_bottle_of_water.mdl", "durgz_water", 500, 5, false, 0, false, {TEAM_BAR, TEAM_DRUG})
 AddCustomShipment("Weed", "models/katharsmodels/contraband/zak_wiet/zak_wiet.mdl", "durgz_weed", 500, 5, false, 0, false, {TEAM_DRUG})
-
+--Single Drugz
 AddCustomShipment("Alcohol (SINGLE)", "models/drug_mod/alcohol_can.mdl", "durgz_alcohol", 100, 1, false, 0, false, {TEAM_BAR})
 AddCustomShipment("Asprin (SINGLE)", "models/jaanus/aspbtl.mdl", "durgz_asprin", 100, 1, false, 0, false, {TEAM_MEDIC})
 AddCustomShipment("Cigarette (SINGLE)", "models/boxopencigshib.mdl", "durgz_cigarette", 100, 1, false, 0, false, {TEAM_BAR})

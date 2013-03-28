@@ -26,11 +26,11 @@ GM.Config.allowvehicleowning 			= true
 -- allowvnocollide - Enable/disable the ability to no-collide a vehicle (for security).
 GM.Config.allowvnocollide 				= false
 -- alltalk - Enable for global chat, disable for local chat.
-GM.Config.alltalk 					= false
+GM.Config.alltalk 						= false
 -- autovehiclelock - Enable/Disable automatic locking of a vehicle when a player exits it.
 GM.Config.autovehiclelock 				= true
 -- babygod - people spawn godded (prevent spawn killing)
-GM.Config.babygod 					= false
+GM.Config.babygod 						= true
 -- chatsounds - sounds are played when some things are said in chat
 GM.Config.chatsounds					= true
 -- chiefjailpos - Allow the Chief to set the jail positions.
@@ -72,7 +72,7 @@ GM.Config.dynamicvoice 					= true
 -- earthquakes - Enable/disable earthquakes.
 GM.Config.earthquakes 					= false
 -- enablebuyhealth - Enable/disable buyhealth
-GM.Config.enablebuyhealth 				= true
+GM.Config.enablebuyhealth 				= false
 -- enablebuypistol - Turn /buy on of off.
 GM.Config.enablebuypistol 				= true
 -- enablemayorsetsalary - Enable Mayor salary control.
@@ -123,7 +123,7 @@ GM.Config.respawninjail 				= true
 GM.Config.restrictallteams 				= false
 -- restrictbuypistol - Enabling this feature makes /buy available only to Gun Dealers.
 GM.Config.restrictbuypistol 			= true
--- restrictdrop - Enable/disable restricting which weapons players can drop.
+-- restrictdrop - Enable/disable restricting the weapons players can drop. Setting this to true disallows weapons from shipments from being dropped
 GM.Config.restrictdrop 					= false
 -- strictsuicide - Whether or not players should spawn where they suicided
 GM.Config.strictsuicide 				= false
@@ -241,10 +241,15 @@ GM.Config.wallettaxtime					= 600
 GM.Config.wantedtime					= 120
 -- walkspeed - Sets the max walking speed.
 GM.Config.walkspeed						= 160
-
--- Gemstone Printers Configuration
-GM.Config.topazprintamount                              = 10
-GM.Config.amethystprintamount                   = 15
-GM.Config.emeraldprintamount                    = 25
-GM.Config.rubyprintamount                               = 50
-GM.Config.sapphireprintamount                   = 75
+--- Gemstone Printers Configuration
+-GM.Config.topazprintamount             = 10
+-GM.Config.amethystprintamount          = 15
+-GM.Config.emeraldprintamount           = 25
+-GM.Config.rubyprintamount              = 50
+-GM.Config.sapphireprintamount          = 75
+-- The list of weapons that players are not allowed to drop. Items set to true are not allowed to be dropped
+GM.Config.DisallowDrop = {
+	["weapon_keypadchecker"] = true,
+	["keys"] = true,
+	["pocket"] = true
+}

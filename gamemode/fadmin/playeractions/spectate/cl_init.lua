@@ -1,8 +1,10 @@
 local stopSpectating, startFreeRoam
+local isSpectating = false
 local specEnt
 local thirdperson = true
 local isRoaming = false
-local roamPos = Vector(0) -- the position when roaming free
+local roamPos -- the position when roaming free
+local roamVelocity
 
 /*---------------------------------------------------------------------------
 startHooks
@@ -14,12 +16,12 @@ FAdmin.StartHooks["zzSpectate"] = function()
 
 	-- Right click option
 	FAdmin.ScoreBoard.Main.AddPlayerRightClick("Spectate", function(ply)
-		LocalPlayer():ConCommand("FAdmin Spectate "..ply:UserID())
+		LocalPlayer():ConCommand("FAdmin Spectate "..ply:SteamID())
 	end)
 
 	-- Slap option in player menu
 	FAdmin.ScoreBoard.Player:AddActionButton("Spectate", "FAdmin/icons/spectate", Color(0, 200, 0, 255), function(ply) return FAdmin.Access.PlayerHasPrivilege(LocalPlayer(), "Spectate") and ply ~= LocalPlayer() end, function(ply)
-		RunConsoleCommand("_FAdmin", "Spectate", ply:UserID())
+		RunConsoleCommand("_FAdmin", "Spectate", ply:SteamID())
 	end)
 end
 
@@ -57,6 +59,8 @@ local function getCalcView()
 			view.origin = specEnt:GetShootPos()
 			view.angles = specEnt:EyeAngles()
 		end
+
+		roamPos = view.origin
 
 		return view
 	end
@@ -115,7 +119,7 @@ local function spectateLookingAt()
 
 	if not IsValid(foundPly) then return end
 
-	RunConsoleCommand("FAdmin", "Spectate", foundPly:UserID())
+	RunConsoleCommand("FAdmin", "Spectate", foundPly:SteamID())
 end
 
 /*---------------------------------------------------------------------------
@@ -130,7 +134,8 @@ local function specBinds(ply, bind, pressed)
 
 		if keysDown["ATTACK2"] then
 			local pos = getCalcView().origin - Vector(0, 0, 64)
-			RunConsoleCommand("FAdmin", "TPToPos", string.format("%d, %d, %d", pos.x, pos.y, pos.z))
+			RunConsoleCommand("FAdmin", "TPToPos", string.format("%d, %d, %d", pos.x, pos.y, pos.z),
+				string.format("%d, %d, %d", roamVelocity.x, roamVelocity.y, roamVelocity.z))
 		end
 		return true
 	elseif bind == "+attack" and pressed then
@@ -173,9 +178,10 @@ local function specThink()
 
 	if not isRoaming or keysDown["USE"] then return end
 
-	local roamSpeed = 15
+	local roamSpeed = 1000
 	local aimVec = ply:GetAimVector()
 	local direction = Vector(0)
+	local frametime = RealFrameTime()
 
 	if keysDown["FORWARD"] then
 		direction = aimVec
@@ -190,14 +196,15 @@ local function specThink()
 	end
 
 	if ply:KeyDown(IN_SPEED) then
-		roamSpeed = 30
+		roamSpeed = 1700
 	elseif keysDown["WALK"] then
-		roamSpeed = 5
+		roamSpeed = 400
 	end
 
 	direction:Normalize()
 
-	roamPos = roamPos + direction * roamSpeed
+	roamVelocity = direction * roamSpeed
+	roamPos = roamPos + roamVelocity * frametime
 end
 
 /*---------------------------------------------------------------------------
@@ -222,7 +229,7 @@ startFreeRoam = function()
 		roamPos = thirdperson and getThirdPersonPos(specEnt) or specEnt:GetShootPos()
 		specEnt:SetNoDraw(false)
 	else
-		roamPos = LocalPlayer():GetShootPos()
+		roamPos = isSpectating and roamPos or LocalPlayer():GetShootPos()
 	end
 
 	specEnt = nil
@@ -241,6 +248,8 @@ local function startSpectate(um)
 	if isRoaming then
 		startFreeRoam()
 	end
+
+	isSpectating = true
 
 	hook.Add("CalcView", "FAdminSpectate", specCalcView)
 	hook.Add("PlayerBindPress", "FAdminSpectate", specBinds)
@@ -274,4 +283,5 @@ stopSpectating = function()
 	end
 
 	RunConsoleCommand("_FAdmin_StopSpectating")
+	isSpectating = false
 end
