@@ -1,12 +1,4 @@
-NEWS: READ THIS BEFORE REPORTING BUGS:
-https://github.com/FPtje/DarkRP/wiki/HOW-TO-REPORT-ISSUES
+DO NOT COMMIT TO THE MASTER BRANCH. IF YOU DO I WILL HUNT YOU DOWN AND GUT YOU LIKE A FISH!!!
 ======
 
-Please try to use the git protocol instead of SVN to get access to DarkRP. GitHub has a very nice program for it:
-http://windows.github.com/
-
-
-If you really can't/don't want to use git, you can still use SVN.
-
-SVN link:
-https://github.com/FPtje/DarkRP/trunk
+Make a fresh branch, make your changes, then make a pull request, and I will merge your changes in.
