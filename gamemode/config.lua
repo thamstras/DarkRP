@@ -242,11 +242,11 @@ GM.Config.wantedtime					= 120
 -- walkspeed - Sets the max walking speed.
 GM.Config.walkspeed						= 160
 --- Gemstone Printers Configuration
--GM.Config.topazprintamount             = 10
--GM.Config.amethystprintamount          = 15
--GM.Config.emeraldprintamount           = 25
--GM.Config.rubyprintamount              = 50
--GM.Config.sapphireprintamount          = 75
+GM.Config.topazprintamount              = 10
+GM.Config.amethystprintamount           = 15
+GM.Config.emeraldprintamount            = 25
+GM.Config.rubyprintamount               = 50
+GM.Config.sapphireprintamount           = 75
 -- The list of weapons that players are not allowed to drop. Items set to true are not allowed to be dropped
 GM.Config.DisallowDrop = {
 	["weapon_keypadchecker"] = true,

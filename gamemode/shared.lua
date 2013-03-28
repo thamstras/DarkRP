@@ -370,14 +370,14 @@ TEAM_HIT = AddExtraTeam("Hitman", {
         You also have the same player model as a citizen so
         you can easily blend and reduce the chances of you getting
         caught.
-	]]
+	]],
     weapons = {"weapon_real_cs_scout"},
     command = "hitman",
     max = 2,
     salary = 15,
     admin = 0,
     vote = true,
-    hasLicense = false,
+    hasLicense = false
 })
 
 TEAM_RAPE = AddExtraTeam("Rapist", {
