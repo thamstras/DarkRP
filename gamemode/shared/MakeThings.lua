@@ -2,10 +2,11 @@
 local blockTypes = {"Physgun1", "Spawning1", "Toolgun1"}
 
 
+local checkModel = function(model) return model ~= nil and (CLIENT or util.IsValidModel(model)) end
 local requiredTeamItems = {"color", "model", "description", "weapons", "command", "max", "salary", "admin", "vote"}
-local validShipment = {model = util.IsValidModel, "entity", "price", "amount", "seperate"}
-local validVehicle = {"name", model = util.IsValidModel, "price"}
-local validEntity = {"ent", model = util.IsValidModel, "price", "max", "cmd", "name"}
+local validShipment = {model = checkModel, "entity", "price", "amount", "seperate", "allowed"}
+local validVehicle = {"name", model = checkModel, "price"}
+local validEntity = {"ent", model = checkModel, "price", "max", "cmd", "name"}
 local function checkValid(tbl, requiredItems)
 	for k,v in pairs(requiredItems) do
 		local isFunction = type(v) == "function"
@@ -28,7 +29,7 @@ function AddExtraTeam(Name, colorOrTable, model, Description, Weapons, command, 
 	CustomTeam.name = Name
 
 	local corrupt = checkValid(CustomTeam, requiredTeamItems)
-	if corrupt then error("Corrupt team \"" ..(CustomTeam.name or "") .. "\": element " .. corrupt .. " is incorrect.", 2) end
+	if corrupt then ErrorNoHalt("Corrupt team \"" ..(CustomTeam.name or "") .. "\": element " .. corrupt .. " is incorrect.\n") end 
 
 	table.insert(RPExtraTeams, CustomTeam)
 	team.SetUp(#RPExtraTeams, Name, CustomTeam.color)
@@ -74,7 +75,7 @@ function AddCustomShipment(name, model, entity, price, Amount_of_guns_in_one_shi
 	customShipment.allowed = customShipment.allowed or {}
 
 	local corrupt = checkValid(customShipment, validShipment)
-	if corrupt then error("Corrupt shipment \"" .. (name or "") .. "\": element " .. corrupt .. " is corrupt.", 2) end
+	if corrupt then ErrorNoHalt("Corrupt shipment \"" .. (name or "") .. "\": element " .. corrupt .. " is corrupt.\n") end
 
 	if SERVER and FPP then
 		FPP.AddDefaultBlocked(blockTypes, customShipment.entity)
@@ -92,8 +93,8 @@ function AddCustomVehicle(Name_of_vehicle, model, price, Jobs_that_can_buy_it, c
 
 	local vehicle = {name = Name_of_vehicle, model = model, price = price, allowed = Jobs_that_can_buy_it, customCheck = customcheck}
 	local corrupt = checkValid(vehicle, validVehicle)
-	if corrupt then error("Corrupt vehicle \"" .. (Name_of_vehicle or "") .. "\": element " .. corrupt .. " is corrupt.", 2) end
-	if not found then error("Vehicle invalid: " .. Name_of_vehicle .. ". Unknown vehicle name.") end
+	if corrupt then ErrorNoHalt("Corrupt vehicle \"" .. (Name_of_vehicle or "") .. "\": element " .. corrupt .. " is corrupt.\n") end
+	if not found then ErrorNoHalt("Vehicle invalid: " .. Name_of_vehicle .. ". Unknown v\nehicle name.") end
 
 	table.insert(CustomVehicles, vehicle)
 end
@@ -112,7 +113,7 @@ function AddEntity(name, entity, model, price, max, command, classes, CustomChec
 	end
 
 	local corrupt = checkValid(tblEnt, validEntity)
-	if corrupt then error("Corrupt Entity \"" .. (name or "") .. "\": element " .. corrupt .. " is corrupt.", 2) end
+	if corrupt then ErrorNoHalt("Corrupt Entity \"" .. (name or "") .. "\": element " .. corrupt .. " is corrupt.\n") end
 
 	if SERVER and FPP then
 		FPP.AddDefaultBlocked(blockTypes, tblEnt.ent)

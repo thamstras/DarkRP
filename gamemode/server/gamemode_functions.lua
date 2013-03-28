@@ -1,3 +1,4 @@
+
 /*---------------------------------------------------------------------------
 DarkRP hooks
 ---------------------------------------------------------------------------*/
@@ -277,19 +278,23 @@ function GM:CanTool(ply, trace, mode)
 end
 
 function GM:CanPlayerSuicide(ply)
-        if ply.IsSleeping then
-                GAMEMODE:Notify(ply, 1, 4, string.format(LANGUAGE.unable, "suicide"))
-                return false
-        end
-        if ply:isArrested() then
-                GAMEMODE:Notify(ply, 1, 4, string.format(LANGUAGE.unable, "suicide"))
-                return false
-        end
-        if tobool(GetConVarNumber("wantedsuicide")) and ply.DarkRPVars.wanted then
-                GAMEMODE:Notify(ply, 1, 4, string.format(LANGUAGE.unable, "suicide"))
-                return false
-        end
-        return true
+	if ply.IsSleeping then
+		GAMEMODE:Notify(ply, 1, 4, string.format(LANGUAGE.unable, "suicide", ""))
+		return false
+	end
+	if ply:isArrested() then
+		GAMEMODE:Notify(ply, 1, 4, string.format(LANGUAGE.unable, "suicide", ""))
+		return false
+	end
+	if GAMEMODE.Config.wantedsuicide and ply.DarkRPVars.wanted then
+		GAMEMODE:Notify(ply, 1, 4, string.format(LANGUAGE.unable, "suicide", ""))
+		return false
+	end
+
+	if RPExtraTeams[ply:Team()] and RPExtraTeams[ply:Team()].CanPlayerSuicide then
+		return RPExtraTeams[ply:Team()].CanPlayerSuicide(ply)
+	end
+	return true
 end
 
 function GM:CanDrive(ply, ent)
@@ -319,16 +324,9 @@ function GM:CanProperty(ply, property, ent)
 	return false -- Disabled until antiminge measure is found
 end
 
--- Drop blacklist
-local NoDrop = {
-	["weapon_keypadchecker"] = true,
-	["keys"] = true,
-	["pocket"] = true
-}
-
 function GM:CanDropWeapon(ply, weapon)
 	local class = string.lower(weapon:GetClass())
-	if NoDrop[class] then return false end
+	if self.Config.DisallowDrop[class] then return false end
 
 	if not GAMEMODE.Config.restrictdrop then return true end
 
@@ -401,6 +399,21 @@ function GM:PlayerDeath(ply, weapon, killer)
 		if amount > 0 then
 			ply:AddMoney(-amount)
 			DarkRPCreateMoneyBag(ply:GetPos(), amount)
+		end
+	end
+
+	if GAMEMODE.Config.dmautokick and IsValid(killer) and killer:IsPlayer() and killer ~= ply then
+		if not killer.kills or killer.kills == 0 then
+			killer.kills = 1
+			timer.Simple(GAMEMODE.Config.dmgracetime, function() if IsValid(killer) and killer:IsPlayer() then killer:ResetDMCounter(killer) end end)
+		else
+			-- If this player is going over their limit, kick their ass
+			if killer.kills + 1 > GAMEMODE.Config.dmmaxkills then
+				game.ConsoleCommand("kickid " .. killer:UserID() .. " Auto-kicked. Excessive Deathmatching.\n")
+			else
+				-- Killed another player
+				killer.kills = killer.kills + 1
+			end
 		end
 	end
 
@@ -692,6 +705,15 @@ function GM:PlayerSpawn(ply)
 	DB.Log(ply:SteamName().." ("..ply:SteamID()..") spawned")
 end
 
+local function selectDefaultWeapon(ply)
+	-- Switch to prefered weapon if they have it
+	local cl_defaultweapon = ply:GetInfo("cl_defaultweapon")
+
+	if ply:HasWeapon(cl_defaultweapon) then
+		ply:SelectWeapon(cl_defaultweapon)
+	end
+end
+
 function GM:PlayerLoadout(ply)
 	if ply:isArrested() then return end
 
@@ -699,6 +721,19 @@ function GM:PlayerLoadout(ply)
 	timer.Simple(1, function() removelicense(ply) end)
 
 	local Team = ply:Team() or 1
+
+	if not RPExtraTeams[Team] then return end
+	for k,v in pairs(RPExtraTeams[Team].weapons or {}) do
+		ply:Give(v)
+	end
+
+	if RPExtraTeams[ply:Team()].PlayerLoadout then
+		local val = RPExtraTeams[ply:Team()].PlayerLoadout(ply)
+		if val == true then
+			selectDefaultWeapon(ply)
+			return
+		end
+	end
 
 	ply:Give("keys")
 	ply:Give("weapon_physcannon")
@@ -726,21 +761,7 @@ function GM:PlayerLoadout(ply)
 		ply:Give("weaponchecker")
 	end
 
-	if not RPExtraTeams[Team] then return end
-	for k,v in pairs(RPExtraTeams[Team].weapons or {}) do
-		ply:Give(v)
-	end
-
-	if RPExtraTeams[ply:Team()].PlayerLoadout then
-		RPExtraTeams[ply:Team()].PlayerLoadout(ply)
-	end
-
-	-- Switch to prefered weapon if they have it
-	local cl_defaultweapon = ply:GetInfo("cl_defaultweapon")
-
-	if ply:HasWeapon(cl_defaultweapon) then
-		ply:SelectWeapon(cl_defaultweapon)
-	end
+	selectDefaultWeapon(ply)
 end
 
 local function removeDelayed(ent, ply)
