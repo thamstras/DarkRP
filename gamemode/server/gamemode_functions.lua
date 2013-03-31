@@ -68,6 +68,34 @@ function GM:DarkRPVarChanged(ply, var, oldvar, newvalue)
 
 end
 
+function GM:PlayerBoughtVehicle(ply, ent, cost)
+
+end
+
+function GM:PlayerBoughtDoor(ply, ent, cost)
+
+end
+
+function GM:CanDropWeapon(ply, weapon)
+	local class = string.lower(weapon:GetClass())
+	if self.Config.DisallowDrop[class] then return false end
+
+	if not GAMEMODE.Config.restrictdrop then return true end
+
+	for k,v in pairs(CustomShipments) do
+		if v.entity ~= class then continue end
+
+		return true
+	end
+
+	return false
+end
+
+function GM:DatabaseInitialized()
+	DB.Init()
+	FPP.Init()
+end
+
 /*---------------------------------------------------------
  Gamemode functions
  ---------------------------------------------------------*/
@@ -324,24 +352,11 @@ function GM:CanProperty(ply, property, ent)
 	return false -- Disabled until antiminge measure is found
 end
 
-function GM:CanDropWeapon(ply, weapon)
-	local class = string.lower(weapon:GetClass())
-	if self.Config.DisallowDrop[class] then return false end
-
-	if not GAMEMODE.Config.restrictdrop then return true end
-
-	for k,v in pairs(CustomShipments) do
-		if v.entity ~= class then continue end
-
-		return true
-	end
-
-	return false
-end
-
 function GM:DoPlayerDeath(ply, attacker, dmginfo, ...)
 	local weapon = ply:GetActiveWeapon()
-	if GAMEMODE.Config.dropweapondeath and IsValid(weapon) and self:CanDropWeapon(ply, weapon) then
+	local canDrop = hook.Call("CanDropWeapon", self, ply, weapon)
+
+	if GAMEMODE.Config.dropweapondeath and IsValid(weapon) and canDrop then
 		ply:DropDRPWeapon(weapon)
 	end
 	self.BaseClass:DoPlayerDeath(ply, attacker, dmginfo, ...)
@@ -884,13 +899,16 @@ end
 
 local InitPostEntityCalled = false
 function GM:InitPostEntity()
+	if not RP_MySQLConfig or not RP_MySQLConfig.EnableMySQL then
+		hook.Call("DatabaseInitialized", self)
+	end
+
 	InitPostEntityCalled = true
 	timer.Simple(1, function()
 		if RP_MySQLConfig and RP_MySQLConfig.EnableMySQL then
 			DB.ConnectToMySQL(RP_MySQLConfig.Host, RP_MySQLConfig.Username, RP_MySQLConfig.Password, RP_MySQLConfig.Database_name, RP_MySQLConfig.Database_port)
 			return
 		end
-		DB.Init()
 	end)
 
 	local physData = physenv.GetPerformanceSettings()
