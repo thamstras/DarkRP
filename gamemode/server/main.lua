@@ -548,7 +548,7 @@ local function BuyPistol(ply, args)
 	local custom = false
 	local price = 0
 	for k,v in pairs(CustomShipments) do
-		if v.seperate and string.lower(v.name) == string.lower(args) then
+		if v.seperate and string.lower(v.name) == string.lower(args) and GAMEMODE:CustomObjFitsMap(v) then
 			custom = v
 			class = v.entity
 			model = v.model
@@ -621,7 +621,7 @@ local function BuyShipment(ply, args)
 	local found = false
 	local foundKey
 	for k,v in pairs(CustomShipments) do
-		if string.lower(args) == string.lower(v.name) and not v.noship then
+		if string.lower(args) == string.lower(v.name) and not v.noship and GAMEMODE:CustomObjFitsMap(v) then
 			found = v
 			foundKey = k
 			local canbecome = false
@@ -1012,6 +1012,8 @@ local function Demote(ply, args)
 		else
 			GAMEMODE:TalkToPerson(p, team.GetColor(ply:Team()), "(DEMOTE) "..ply:Nick(),Color(255,0,0,255), "I want to demote you. Reason: "..reason, p)
 			GAMEMODE:NotifyAll(0, 4, string.format(LANGUAGE.demote_vote_started, ply:Nick(), p:Nick()))
+			DB.Log(string.format(LANGUAGE.demote_vote_started, ply:Nick(), p:Nick()) .. " (" .. reason .. ")",
+				false, Color(255, 128, 255, 255))
 			p.IsBeingDemoted = true
 			GAMEMODE.vote:Create(p:Nick() .. ":\n"..string.format(LANGUAGE.demote_vote_text, reason), p:EntIndex() .. "votecop"..ply:EntIndex(), p, 20, FinishDemote, true)
 			ply:GetTable().LastVoteCop = CurTime()
@@ -1871,11 +1873,11 @@ local function rp_GiveLicense(ply, cmd, args)
 
 		GAMEMODE:Notify(target, 1, 4, string.format(LANGUAGE.gunlicense_granted, nick, target:Nick()))
 		GAMEMODE:Notify(ply, 2, 4, string.format(LANGUAGE.gunlicense_granted, nick, target:Nick()))
-		DB.Log(ply:SteamName().." ("..ply:SteamID()..") force-gave "..target:Nick().." a gun license")
+		DB.Log(ply:Nick().." ("..ply:SteamID()..") force-gave "..target:Nick().." a gun license")
 		if ply:EntIndex() == 0 then
 			DB.Log("Console force-gave "..target:Nick().." a gun license", nil, Color(30, 30, 30))
 		else
-			DB.Log(ply:SteamName().." ("..ply:SteamID()..") force-gave "..target:Nick().." a gun license", nil, Color(30, 30, 30))
+			DB.Log(ply:Nick().." ("..ply:SteamID()..") force-gave "..target:Nick().." a gun license", nil, Color(30, 30, 30))
 		end
 	else
 		if ply:EntIndex() == 0 then
@@ -1907,11 +1909,11 @@ local function rp_RevokeLicense(ply, cmd, args)
 
 		GAMEMODE:Notify(target, 1, 4, string.format(LANGUAGE.gunlicense_denied, nick, target:Nick()))
 		GAMEMODE:Notify(ply, 1, 4, string.format(LANGUAGE.gunlicense_denied, nick, target:Nick()))
-		DB.Log(ply:SteamName().." ("..ply:SteamID()..") force-removed "..target:Nick().."'s gun license")
+		DB.Log(ply:Nick().." ("..ply:SteamID()..") force-removed "..target:Nick().."'s gun license")
 		if ply:EntIndex() == 0 then
 			DB.Log("Console force-removed "..target:Nick().."'s gun license", nil, Color(30, 30, 30))
 		else
-			DB.Log(ply:SteamName().." ("..ply:SteamID()..") force-removed "..target:Nick().."'s gun license", nil, Color(30, 30, 30))
+			DB.Log(ply:Nick().." ("..ply:SteamID()..") force-removed "..target:Nick().."'s gun license", nil, Color(30, 30, 30))
 		end
 	else
 		if ply:EntIndex() == 0 then

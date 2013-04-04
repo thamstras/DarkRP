@@ -128,8 +128,8 @@ function GM:PlayerSpawnSENT(ply, model)
 end
 
 local function canSpawnWeapon(ply, class)
-	if (not GAMEMODE.Config.adminweapons and ply:IsAdmin()) or
-	(GAMEMODE.Config.adminweapons and ply:IsSuperAdmin()) then
+	if (not GAMEMODE.Config.adminweapons == 0 and ply:IsAdmin()) or
+	(GAMEMODE.Config.adminweapons == 1 and ply:IsSuperAdmin()) then
 		return true
 	end
 	GAMEMODE:Notify(ply, 1, 4, "You can't spawn weapons")
@@ -452,7 +452,7 @@ function GM:PlayerDeath(ply, weapon, killer)
 		WeaponName = "suicide trick"
 	end
 
-	DB.Log(ply:SteamName() .. " was killed by " .. KillerName .. " with a " .. WeaponName, nil, Color(255, 190, 0))
+	DB.Log(ply:Nick() .. " was killed by " .. KillerName .. " with a " .. WeaponName, nil, Color(255, 190, 0))
 end
 
 function GM:PlayerCanPickupWeapon(ply, weapon)
@@ -524,7 +524,7 @@ end
 
 function GM:PlayerInitialSpawn(ply)
 	self.BaseClass:PlayerInitialSpawn(ply)
-	DB.Log(ply:SteamName().." ("..ply:SteamID()..") has joined the game", nil, Color(0, 130, 255))
+	DB.Log(ply:Nick().." ("..ply:SteamID()..") has joined the game", nil, Color(0, 130, 255))
 	ply.bannedfrom = {}
 	ply.DarkRPVars = ply.DarkRPVars or {}
 	ply:NewData()
@@ -683,7 +683,7 @@ function GM:PlayerSpawn(ply)
 	ply.IsSleeping = false
 
 	GAMEMODE:SetPlayerSpeed(ply, GAMEMODE.Config.walkspeed, GAMEMODE.Config.runspeed)
-	if ply:Team() == TEAM_CHIEF or ply:Team() == TEAM_POLICE then
+	if ply:IsCP() then
 		GAMEMODE:SetPlayerSpeed(ply, GAMEMODE.Config.walkspeed, GAMEMODE.Config.runspeed + 10)
 	end
 
@@ -717,7 +717,7 @@ function GM:PlayerSpawn(ply)
 	end
 
 	ply:AllowFlashlight(true)
-	DB.Log(ply:SteamName().." ("..ply:SteamID()..") spawned")
+	DB.Log(ply:Nick().." ("..ply:SteamID()..") spawned")
 end
 
 local function selectDefaultWeapon(ply)
@@ -750,23 +750,17 @@ function GM:PlayerLoadout(ply)
 		end
 	end
 
-	ply:Give("keys")
-	ply:Give("weapon_physcannon")
-	ply:Give("gmod_camera")
+	for k, v in pairs(self.Config.DefaultWeapons) do
+		ply:Give(v)
+	end
 
-	if GAMEMODE.Config.toolgun or (FAdmin and FAdmin.Access.PlayerHasPrivilege(ply, "rp_tool")) or ply:IsAdmin()  then
+	if (FAdmin and FAdmin.Access.PlayerHasPrivilege(ply, "rp_tool")) or ply:IsAdmin()  then
 		ply:Give("gmod_tool")
 	end
 
 	if (FAdmin and FAdmin.Access.PlayerHasPrivilege(ply, "rp_tool")) or ply:IsAdmin() then
 		ply:Give("weapon_keypadchecker")
 	end
-
-	if GAMEMODE.Config.pocket then
-		ply:Give("pocket")
-	end
-
-	ply:Give("weapon_physgun")
 
 	if ply:HasPriv("rp_commands") and GAMEMODE.Config.AdminsCopWeapons then
 		ply:Give("door_ram")
@@ -833,7 +827,7 @@ function GM:PlayerDisconnected(ply)
 	end
 
 	ply:UnownAll()
-	DB.Log(ply:SteamName().." ("..ply:SteamID()..") disconnected", nil, Color(0, 130, 255))
+	DB.Log(ply:Nick().." ("..ply:SteamID()..") disconnected", nil, Color(0, 130, 255))
 
 	if RPExtraTeams[ply:Team()] and RPExtraTeams[ply:Team()].PlayerDisconnected then
 		RPExtraTeams[ply:Team()].PlayerDisconnected(ply)
