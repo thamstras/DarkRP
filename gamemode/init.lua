@@ -63,6 +63,7 @@ AddCSLuaFile("ammotypes.lua")
 AddCSLuaFile("cl_init.lua")
 AddCSLuaFile("config.lua")
 
+AddCSLuaFile("client/cl_chatlisteners.lua")
 AddCSLuaFile("client/DRPDermaSkin.lua")
 AddCSLuaFile("client/help.lua")
 AddCSLuaFile("client/helpvgui.lua")
@@ -181,24 +182,3 @@ FPP.AddDefaultBlocked(blockTypes, "spawned_shipment")
 FPP.AddDefaultBlocked(blockTypes, "spawned_weapon")
 
 FPP.AddDefaultBlocked("Spawning1", "darkrp_laws")
-
-
-/*---------------------------------------------------------------------------
-Registering numpad data
----------------------------------------------------------------------------*/
-local oldNumpadUp = numpad.OnUp
-local oldNumpadDown = numpad.OnDown
-
-function numpad.OnUp(ply, key, name, ent, ...)
-	numpad.OnUpItems = numpad.OnUpItems or {}
-	table.insert(numpad.OnUpItems, {ply = ply, key = key, name = name, ent = ent, arg = {...}})
-
-	return oldNumpadUp(ply, key, name, ent, ...)
-end
-
-function numpad.OnDown(ply, key, name, ent, ...)
-	numpad.OnDownItems = numpad.OnDownItems or {}
-	table.insert(numpad.OnDownItems, {ply = ply, key = key, name = name, ent = ent, arg = {...}})
-
-	return oldNumpadDown(ply, key, name, ent, ...)
-end
