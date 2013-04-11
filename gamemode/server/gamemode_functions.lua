@@ -96,6 +96,10 @@ function GM:DatabaseInitialized()
 	FPP.Init()
 end
 
+function GM:CanSeeLogMessage(ply, message, colour)
+	return ply:IsAdmin()
+end
+
 /*---------------------------------------------------------
  Gamemode functions
  ---------------------------------------------------------*/
@@ -951,4 +955,9 @@ timer.Create("RP_DecalCleaner", GM.Config.decaltimer, 0, ClearDecals)
 function GM:PlayerSpray()
 
 	return not GAMEMODE.Config.allowsprays
+end
+
+function GM:PlayerNoClip(ply)
+	-- Default action for noclip is to disallow it
+	return false
 end
