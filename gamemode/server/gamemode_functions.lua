@@ -32,6 +32,14 @@ function GM:CanChangeRPName(ply, RPname)
 	end
 end
 
+function GM:CanDemote(ply, target, reason)
+
+end
+
+function GM:CanVote(ply, vote)
+
+end
+
 function GM:PlayerArrested(ply, time)
 
 end
@@ -77,6 +85,7 @@ function GM:PlayerBoughtDoor(ply, ent, cost)
 end
 
 function GM:CanDropWeapon(ply, weapon)
+	if not IsValid(weapon) then return false end
 	local class = string.lower(weapon:GetClass())
 	if self.Config.DisallowDrop[class] then return false end
 
@@ -92,8 +101,8 @@ function GM:CanDropWeapon(ply, weapon)
 end
 
 function GM:DatabaseInitialized()
-	DB.Init()
 	FPP.Init()
+	DB.Init()
 end
 
 function GM:CanSeeLogMessage(ply, message, colour)
@@ -220,16 +229,12 @@ function GM:ShowSpare1(ply)
 	if RPExtraTeams[ply:Team()] and RPExtraTeams[ply:Team()].ShowSpare1 then
 		return RPExtraTeams[ply:Team()].ShowSpare1(ply)
 	end
-	umsg.Start("ToggleClicker", ply)
-	umsg.End()
 end
 
 function GM:ShowSpare2(ply)
 	if RPExtraTeams[ply:Team()] and RPExtraTeams[ply:Team()].ShowSpare2 then
 		return RPExtraTeams[ply:Team()].ShowSpare2(ply)
 	end
-	umsg.Start("ChangeJobVGUI", ply)
-	umsg.End()
 end
 
 function GM:OnNPCKilled(victim, ent, weapon)
@@ -372,19 +377,8 @@ function GM:PlayerDeath(ply, weapon, killer)
 	end
 
 	if GAMEMODE.Config.deathblack then
-		local RP = RecipientFilter()
-		RP:RemoveAllPlayers()
-		RP:AddPlayer(ply)
-		umsg.Start("DarkRPEffects", RP)
-			umsg.String("colormod")
-			umsg.String("1")
-		umsg.End()
-		RP:AddAllPlayers()
+		SendUserMessage("blackScreen", ply, true)
 	end
-	if GAMEMODE.Config.deathpov then
-		SendUserMessage("DarkRPEffects", ply, "deathPOV", "1")
-	end
-	UnDrugPlayer(ply)
 
 	if weapon:IsVehicle() and weapon:GetDriver():IsPlayer() then killer = weapon:GetDriver() end
 
@@ -418,21 +412,6 @@ function GM:PlayerDeath(ply, weapon, killer)
 		if amount > 0 then
 			ply:AddMoney(-amount)
 			DarkRPCreateMoneyBag(ply:GetPos(), amount)
-		end
-	end
-
-	if GAMEMODE.Config.dmautokick and IsValid(killer) and killer:IsPlayer() and killer ~= ply then
-		if not killer.kills or killer.kills == 0 then
-			killer.kills = 1
-			timer.Simple(GAMEMODE.Config.dmgracetime, function() if IsValid(killer) and killer:IsPlayer() then killer:ResetDMCounter(killer) end end)
-		else
-			-- If this player is going over their limit, kick their ass
-			if killer.kills + 1 > GAMEMODE.Config.dmmaxkills then
-				game.ConsoleCommand("kickid " .. killer:UserID() .. " Auto-kicked. Excessive Deathmatching.\n")
-			else
-				-- Killed another player
-				killer.kills = killer.kills + 1
-			end
 		end
 	end
 
@@ -646,6 +625,9 @@ end
 
 function GM:PlayerSpawn(ply)
 	self.BaseClass:PlayerSpawn(ply)
+
+	player_manager.SetPlayerClass(ply, "player_DarkRP")
+
 	ply:SetNoCollideWithTeammates(false)
 	ply:CrosshairEnable()
 	ply:UnSpectate()
@@ -655,17 +637,8 @@ function GM:PlayerSpawn(ply)
 		ply:CrosshairDisable()
 	end
 
-	SendUserMessage("DarkRPEffects", ply, "deathPOV", "0") -- No checks to prevent bugs
-
 	-- Kill any colormod
-	local RP = RecipientFilter()
-	RP:RemoveAllPlayers()
-	RP:AddPlayer(ply)
-	umsg.Start("DarkRPEffects", RP)
-		umsg.String("colormod")
-		umsg.String("0")
-	umsg.End()
-	RP:AddAllPlayers()
+	SendUserMessage("blackScreen", ply, false)
 
 	if GAMEMODE.Config.babygod and not ply.IsSleeping and not ply.Babygod then
 		timer.Destroy(ply:EntIndex() .. "babygod")
@@ -735,6 +708,8 @@ end
 
 function GM:PlayerLoadout(ply)
 	if ply:isArrested() then return end
+
+	player_manager.RunClass(ply, "Spawn")
 
 	ply:GetTable().RPLicenseSpawn = true
 	timer.Simple(1, function() removelicense(ply) end)
@@ -898,7 +873,7 @@ end
 local InitPostEntityCalled = false
 function GM:InitPostEntity()
 	if not RP_MySQLConfig or not RP_MySQLConfig.EnableMySQL then
-		hook.Call("DatabaseInitialized", self)
+		hook.Call("DatabaseInitialized")
 	end
 
 	InitPostEntityCalled = true

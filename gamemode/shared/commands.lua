@@ -15,8 +15,12 @@ function GM:AddTeamCommands(CTeam, max)
 		end
 	end
 
-	if CTeam.vote then
+	if CTeam.vote or CTeam.RequiresVote then
 		AddChatCommand("/vote"..CTeam.command, function(ply)
+			if CTeam.RequiresVote and not CTeam.RequiresVote(ply, k) then
+				GAMEMODE:Notify(ply, 1,4, "This job does not require a vote at this moment!")
+				return ""
+			end
 			if type(CTeam.NeedToChangeFrom) == "number" and ply:Team() ~= CTeam.NeedToChangeFrom then
 				GAMEMODE:Notify(ply, 1,4, string.format(LANGUAGE.need_to_be_before, team.GetName(CTeam.NeedToChangeFrom), CTeam.name))
 				return ""
@@ -53,8 +57,11 @@ function GM:AddTeamCommands(CTeam, max)
 				GAMEMODE:Notify(ply, 1, 4,  string.format(LANGUAGE.team_limit_reached,CTeam.name))
 				return ""
 			end
-			GAMEMODE.vote:Create(string.format(LANGUAGE.wants_to_be, ply:Nick(), CTeam.name), ply:EntIndex() .. "votecop", ply, 20, function(choice, ply)
-				if choice == 1 then
+			GAMEMODE.vote:create(string.format(LANGUAGE.wants_to_be, ply:Nick(), CTeam.name), "job", ply, 20, function(vote, choice)
+				local ply = vote.target
+
+				if not IsValid(ply) then return end
+				if choice >= 0 then
 					ply:ChangeTeam(k)
 				else
 					GAMEMODE:NotifyAll(1, 4, string.format(LANGUAGE.has_not_been_made_team, ply:Nick(), CTeam.name))
@@ -77,9 +84,11 @@ function GM:AddTeamCommands(CTeam, max)
 				return ""
 			end
 
-			if a == 0 and not ply:IsAdmin()
-			or a == 1 and not ply:IsSuperAdmin()
-			or a == 2
+			if not CTeam.RequiresVote and
+				(a == 0 and not ply:IsAdmin()
+				or a == 1 and not ply:IsSuperAdmin()
+				or a == 2)
+			or CTeam.RequiresVote and CTeam.RequiresVote(ply, k)
 			then
 				GAMEMODE:Notify(ply, 1, 4, string.format(LANGUAGE.need_to_make_vote, CTeam.name))
 				return ""
@@ -144,4 +153,61 @@ function GM:AddTeamCommands(CTeam, max)
 			return
         end
 	end)
+end
+
+function GM:AddEntityCommands(tblEnt)
+	if CLIENT then return end
+
+	local function buythis(ply, args)
+		if ply:isArrested() then return "" end
+		if type(tblEnt.allowed) == "table" and not table.HasValue(tblEnt.allowed, ply:Team()) then
+			GAMEMODE:Notify(ply, 1, 4, string.format(LANGUAGE.incorrect_job, tblEnt.cmd))
+			return ""
+		end
+		local cmdname = string.gsub(tblEnt.ent, " ", "_")
+
+		if tblEnt.customCheck and not tblEnt.customCheck(ply) then
+			GAMEMODE:Notify(ply, 1, 4, tblEnt.CustomCheckFailMsg or "You're not allowed to purchase this item")
+			return ""
+		end
+
+		local max = tonumber(tblEnt.max or 3)
+
+		if ply["max"..cmdname] and tonumber(ply["max"..cmdname]) >= tonumber(max) then
+			GAMEMODE:Notify(ply, 1, 4, string.format(LANGUAGE.limit, tblEnt.cmd))
+			return ""
+		end
+
+		if not ply:CanAfford(tblEnt.price) then
+			GAMEMODE:Notify(ply, 1, 4, string.format(LANGUAGE.cant_afford, tblEnt.cmd))
+			return ""
+		end
+		ply:AddMoney(-tblEnt.price)
+
+		local trace = {}
+		trace.start = ply:EyePos()
+		trace.endpos = trace.start + ply:GetAimVector() * 85
+		trace.filter = ply
+
+		local tr = util.TraceLine(trace)
+
+		local item = ents.Create(tblEnt.ent)
+		item.dt = item.dt or {}
+		item.dt.owning_ent = ply
+		if item.Setowning_ent then item:Setowning_ent(ply) end
+		item:SetPos(tr.HitPos)
+		item.SID = ply.SID
+		item.onlyremover = true
+		item:Spawn()
+		local phys = item:GetPhysicsObject()
+		if phys:IsValid() then phys:Wake() end
+
+		GAMEMODE:Notify(ply, 0, 4, string.format(LANGUAGE.you_bought_x, tblEnt.name, CUR..tblEnt.price))
+		if not ply["max"..cmdname] then
+			ply["max"..cmdname] = 0
+		end
+		ply["max"..cmdname] = ply["max"..cmdname] + 1
+		return ""
+	end
+	AddChatCommand(tblEnt.cmd, buythis)
 end

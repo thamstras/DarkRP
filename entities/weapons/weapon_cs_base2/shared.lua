@@ -9,7 +9,7 @@ if CLIENT then
 	SWEP.DrawAmmo			= true
 	SWEP.DrawCrosshair		= false
 	SWEP.ViewModelFOV		= 82
-	SWEP.ViewModelFlip		= true
+	SWEP.ViewModelFlip		= false
 	SWEP.CSMuzzleFlashes	= true
 
 	-- This is the font that's used to draw the death icons
@@ -36,6 +36,7 @@ SWEP.Instructions = ""
 
 SWEP.Spawnable = false
 SWEP.AdminSpawnable = false
+SWEP.UseHands = true
 
 SWEP.HoldType = "normal"
 SWEP.CurHoldType = "normal"
@@ -156,7 +157,7 @@ function SWEP:PrimaryAttack( partofburst )
 		return
 	end
 
-	if self.CurHoldType == "normal" then
+	if self.CurHoldType == "normal" and not GAMEMODE.Config.ironshoot then
 		self:NewSetWeaponHoldType(self.HoldType)
 		self.CurHoldType = self.HoldType
 	end
@@ -411,7 +412,7 @@ function SWEP:Equip(NewOwner)
 end
 
 function SWEP:Think()
-	if self.Primary.ClipSize ~= -1 and not self.Reloading and not self.Ironsights and self.LastPrimaryAttack + 3 < CurTime() and self.CurHoldType == self.HoldType then
+	if self.Primary.ClipSize ~= -1 and not self.Reloading and not self.Ironsights and self.LastPrimaryAttack + 1 < CurTime() and self.CurHoldType == self.HoldType then
 		self.CurHoldType = "normal"
 		self:NewSetWeaponHoldType("normal")
 	end

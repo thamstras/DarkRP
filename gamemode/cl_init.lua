@@ -14,13 +14,8 @@ local pmeta = FindMetaTable("Player")
 
 pmeta.SteamName = pmeta.SteamName or pmeta.Name
 function pmeta:Name()
-	if not self or not self.IsValid or not IsValid(self) then return "" end
-
-	self.DarkRPVars = self.DarkRPVars or {}
-	if not GAMEMODE.Config.allowrpnames then
-		return self:SteamName()
-	end
-	return self.DarkRPVars.rpname and tostring(self.DarkRPVars.rpname) or self:SteamName()
+	return GAMEMODE.Config.allowrpnames and self.DarkRPVars and self.DarkRPVars.rpname
+		or self:SteamName()
 end
 
 pmeta.GetName = pmeta.Name
@@ -50,10 +45,12 @@ local function LoadModules()
 	for _, folder in SortedPairs(folders, true) do
 		if GM.Config.DisabledModules[folder] then continue end
 
-		for _, File in SortedPairs(file.Find(root .. folder .."/cl_*.lua", "LUA"), true) do
+		for _, File in SortedPairs(file.Find(root .. folder .."/sh_*.lua", "LUA"), true) do
+			if File == "sh_interface.lua" then continue end
 			include(root.. folder .. "/" ..File)
 		end
-		for _, File in SortedPairs(file.Find(root .. folder .."/sh_*.lua", "LUA"), true) do
+		for _, File in SortedPairs(file.Find(root .. folder .."/cl_*.lua", "LUA"), true) do
+			if File == "cl_interface.lua" then continue end
 			include(root.. folder .. "/" ..File)
 		end
 	end
@@ -67,6 +64,7 @@ end
 GM.Config = {} -- config table
 
 include("config.lua")
+include("sh_interfaceloader.lua")
 include("client/help.lua")
 
 include("client/cl_chatlisteners.lua")
@@ -76,6 +74,7 @@ include("client/hud.lua")
 include("client/showteamtabs.lua")
 include("client/vgui.lua")
 
+include("shared/player_class.lua")
 include("shared/animations.lua")
 include("shared/commands.lua")
 include("shared/entity.lua")
@@ -94,6 +93,8 @@ include("fpp/client/FPP_Buddies.lua")
 include("fpp/sh_CPPI.lua")
 
 LoadModules()
+
+DarkRP.finish()
 
 surface.CreateFont("AckBarWriting", {
 	size = 20,
@@ -164,7 +165,7 @@ local GUIToggled = false
 local HelpToggled = false
 
 local HelpVGUI
-local function ToggleHelp()
+function GM:ShowHelp()
 	if not HelpVGUI then
 		HelpVGUI = vgui.Create("HelpVGUI")
 	end
@@ -176,76 +177,33 @@ local function ToggleHelp()
 	HelpVGUI:SetVisible(HelpToggled)
 	gui.EnableScreenClicker(HelpToggled)
 end
-usermessage.Hook("ToggleHelp", ToggleHelp)
 
-local function ToggleClicker()
+local mouseX, mouseY = ScrW() / 2, ScrH() / 2
+function GM:ShowSpare1()
 	GUIToggled = not GUIToggled
+
+	if GUIToggled then
+		gui.SetMousePos(mouseX, mouseY)
+	else
+		mouseX, mouseY = gui.MousePos()
+	end
 	gui.EnableScreenClicker(GUIToggled)
 end
-usermessage.Hook("ToggleClicker", ToggleClicker)
 
-local function DoSpecialEffects(Type)
-	local thetype = string.lower(Type:ReadString())
-	local toggle = tobool(Type:ReadString())
+local function blackScreen(um)
+	local toggle = um:ReadBool()
 	if toggle then
-		if thetype == "motionblur" then
-			hook.Add("RenderScreenspaceEffects", thetype, function()
-				DrawMotionBlur(0.05, 1.00, 0.035)
-			end)
-		elseif thetype == "dof" then
-			DOF_SPACING = 8
-			DOF_OFFSET = 9
-			DOF_Start()
-		elseif thetype == "colormod" then
-			hook.Add("RenderScreenspaceEffects", thetype, function()
-				local settings = {}
-				settings[ "$pp_colour_addr" ] = 0
-			 	settings[ "$pp_colour_addg" ] = 0
-			 	settings[ "$pp_colour_addb" ] = 0
-			 	settings[ "$pp_colour_brightness" ] = -1
-			 	settings[ "$pp_colour_contrast" ] = 0
-			 	settings[ "$pp_colour_colour" ] =0
-			 	settings[ "$pp_colour_mulr" ] = 0
-			 	settings[ "$pp_colour_mulg" ] = 0
-			 	settings[ "$pp_colour_mulb" ] = 0
-				DrawColorModify(settings)
-			end)
-		elseif thetype == "drugged" then
-			hook.Add("RenderScreenspaceEffects", thetype, function()
-				DrawSharpen(-1, 2)
-				DrawMaterialOverlay("models/props_lab/Tank_Glass001", 0)
-				DrawMotionBlur(0.13, 1, 0.00)
-			end)
-		elseif thetype == "deathpov" then
-			hook.Add("CalcView", "rp_deathPOV", function(ply, origin, angles, fov)
-				local Ragdoll = ply:GetRagdollEntity()
-				if not IsValid(Ragdoll) then return end
-
-				local head = Ragdoll:LookupAttachment("eyes")
-				head = Ragdoll:GetAttachment(head)
-				if not head or not head.Pos then return end
-
-				local view = {}
-				view.origin = head.Pos
-				view.angles = head.Ang
-				view.fov = fov
-				return view
-			end)
-		end
-	elseif toggle == false then
-		if thetype == "dof" then
-			DOF_Kill()
-			return
-		elseif thetype == "deathpov" then
-			if hook.GetTable().CalcView and hook.GetTable().CalcView.rp_deathPOV then
-				hook.Remove("CalcView", "rp_deathPOV")
-			end
-			return
-		end
-		hook.Remove("RenderScreenspaceEffects", thetype)
+		local black = Color(0, 0, 0)
+		local w, h = ScrW(), ScrH()
+		hook.Add("HUDPaintBackground", "BlackScreen", function()
+			surface.SetDrawColor(black)
+			surface.DrawRect(0, 0, w, h)
+		end)
+	else
+		hook.Remove("HUDPaintBackground", "BlackScreen")
 	end
 end
-usermessage.Hook("DarkRPEffects", DoSpecialEffects)
+usermessage.Hook("blackScreen", blackScreen)
 
 function GM:PlayerStartVoice(ply)
 	if ply == LocalPlayer() then
@@ -267,11 +225,24 @@ end
 function GM:OnPlayerChat()
 end
 
-function GM:PlayerBindPress(ply,bind,pressed)
+local FKeyBinds = {
+	["gm_showhelp"] = "ShowHelp",
+	["gm_showteam"] = "ShowTeam",
+	["gm_showspare1"] = "ShowSpare1",
+	["gm_showspare2"] = "ShowSpare2"
+}
+
+function GM:PlayerBindPress(ply, bind, pressed)
 	self.BaseClass:PlayerBindPress(ply, bind, pressed)
 	if ply == LocalPlayer() and IsValid(ply:GetActiveWeapon()) and string.find(string.lower(bind), "attack2") and ply:GetActiveWeapon():GetClass() == "weapon_bugbait" then
 		LocalPlayer():ConCommand("_hobo_emitsound")
 	end
+
+	local bnd = string.match(string.lower(bind), "gm_[a-z]+[12]?")
+	if bnd and FKeyBinds[bnd] then
+		GAMEMODE[FKeyBinds[bnd]](GAMEMODE)
+	end
+
 	return
 end
 

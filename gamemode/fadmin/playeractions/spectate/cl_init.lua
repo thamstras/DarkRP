@@ -4,7 +4,7 @@ local specEnt
 local thirdperson = true
 local isRoaming = false
 local roamPos -- the position when roaming free
-local roamVelocity
+local roamVelocity = Vector(0)
 
 /*---------------------------------------------------------------------------
 startHooks
@@ -252,6 +252,7 @@ local function startSpectate(um)
 	end
 
 	isSpectating = true
+	keysDown = {}
 
 	hook.Add("CalcView", "FAdminSpectate", specCalcView)
 	hook.Add("PlayerBindPress", "FAdminSpectate", specBinds)

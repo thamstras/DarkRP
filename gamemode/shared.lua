@@ -38,7 +38,7 @@ TEAM_CITIZEN = AddExtraTeam("Citizen", {
  
 TEAM_POLICE = AddExtraTeam("Civil Protection", {
     color = Color(25, 25, 170, 255),
-    model = "models/player/police.mdl",
+	model = {"models/player/police.mdl", "models/player/police_fem.mdl"},
     description = [[
         
         Donator Job: No
@@ -134,22 +134,6 @@ TEAM_CHIEF = AddExtraTeam("Civil Protection Chief", {
     hasLicense = true,
     NeedToChangeFrom = TEAM_POLICE,
     help = LANGUAGE.cophelp
-})
-
-TEAM_COOK = AddExtraTeam("Cook", {
-	color = Color(238, 99, 99, 255),
-	model = "models/player/mossman.mdl",
-	description = [[As a cook, it is your responsibility to feed the other members
-		of your city.
-		You can spawn a microwave and sell the food you make:
-		/Buymicrowave]],
-	weapons = {},
-	command = "cook",
-	max = 2,
-	salary = 45,
-	admin = 0,
-	vote = false,
-	hasLicense = false
 })
 
 TEAM_MAYOR = AddExtraTeam("Mayor", {

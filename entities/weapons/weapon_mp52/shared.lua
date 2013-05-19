@@ -6,7 +6,7 @@ if CLIENT then
 	SWEP.PrintName = "MP5"
 	SWEP.Author = "Rickster"
 	SWEP.Slot = 2
-	SWEP.SlotPos = 3
+	SWEP.SlotPos = 0
 	SWEP.IconLetter = "x"
 
 	killicon.AddFont("weapon_mp5", "CSKillIcons", SWEP.IconLetter, Color(255, 80, 0, 255))
@@ -17,7 +17,7 @@ SWEP.Base = "weapon_cs_base2"
 SWEP.Spawnable = true
 SWEP.AdminSpawnable = true
 
-SWEP.ViewModel = "models/weapons/v_smg_mp5.mdl"
+SWEP.ViewModel = "models/weapons/cstrike/c_smg_mp5.mdl"
 SWEP.WorldModel = "models/weapons/w_smg_mp5.mdl"
 
 SWEP.Weight = 5
@@ -42,5 +42,5 @@ SWEP.Secondary.DefaultClip = -1
 SWEP.Secondary.Automatic = false
 SWEP.Secondary.Ammo = "none"
 
-SWEP.IronSightsPos = Vector(4.7659, -3.0823, 1.8818)
-SWEP.IronSightsAng = Vector(0.9641, 0.0252, 0)
+SWEP.IronSightsPos = Vector(-6.3, -12, 1.5)
+SWEP.IronSightsAng = Vector(1, 0, 0)

@@ -10,20 +10,70 @@ end
 DB.CONNECTED_TO_MYSQL = false
 DB.MySQLDB = nil
 
+local QueuedQueries
 function DB.Begin()
 	if not DB.CONNECTED_TO_MYSQL then
 		sql.Begin()
 	else
-		DB.Query("START TRANSACTION")
+		if QueuedQueries then
+			debug.Trace()
+			error("Transaction ongoing!")
+		end
+		QueuedQueries = {}
 	end
 end
 
-function DB.Commit()
+function DB.Commit(onFinished)
 	if not DB.CONNECTED_TO_MYSQL then
 		sql.Commit()
+		if onFinished then onFinished() end
 	else
-		DB.Query("COMMIT")
+		if not QueuedQueries then
+			error("No queued queries! Call DB.Begin() first!")
+		end
+
+		if #QueuedQueries == 0 then
+			QueuedQueries = nil
+			return
+		end
+
+		-- Copy the table so other scripts can create their own queue
+		local queue = table.Copy(QueuedQueries)
+		QueuedQueries = nil
+
+		-- Handle queued queries in order
+		local queuePos = 0
+		local call
+
+		-- Recursion invariant: queuePos > 0 and queue[queuePos] <= #queue
+		call = function(...)
+			queuePos = queuePos + 1
+
+			if queue[queuePos].callback then
+				queue[queuePos].callback(...)
+			end
+
+			-- Base case, end of the queue
+			if queuePos + 1 > #queue then
+				if onFinished then onFinished() end -- All queries have finished
+				return
+			end
+
+			-- Recursion
+			local nextQuery = queue[queuePos + 1]
+			DB.Query(nextQuery.query, call, nextQuery.onError)
+		end
+
+		DB.Query(queue[1].query, call, queue[1].onError)
 	end
+end
+
+function DB.QueueQuery(sqlText, callback, errorCallback)
+	if DB.CONNECTED_TO_MYSQL then
+		table.insert(QueuedQueries, {query = sqlText, callback = callback, onError = errorCallback})
+	end
+	-- SQLite is instantaneous, simply running the query is equal to queueing it
+	DB.Query(sqlText, callback, errorCallback)
 end
 
 function DB.Query(sqlText, callback, errorCallback)
@@ -46,11 +96,11 @@ function DB.Query(sqlText, callback, errorCallback)
 			end
 
 			DB.Log("MySQL Error: ".. E)
-			ErrorNoHalt(E)
+			ErrorNoHalt(E .. " (" .. sqlText .. ")\n")
 		end
 
 		query.onSuccess = function()
-			if callback then callback(data) end
+			if callback then callback(data, query:lastInsert()) end
 		end
 		query:start()
 		return
@@ -91,7 +141,7 @@ function DB.QueryValue(sqlText, callback, errorCallback)
 			end
 
 			DB.Log("MySQL Error: ".. E)
-			ErrorNoHalt(E)
+			ErrorNoHalt(E .. " (" .. sqlText .. ")\n")
 		end
 
 		query:start()
@@ -139,17 +189,25 @@ function DB.ConnectToMySQL(host, username, password, database_name, database_por
 			end
 		end)
 
-		hook.Call("DatabaseInitialized", GAMEMODE)
+		hook.Call("DatabaseInitialized")
 	end
 	databaseObject:connect()
 	DB.MySQLDB = databaseObject
+end
+
+function DB.SQLStr(str)
+	if not DB.CONNECTED_TO_MYSQL then
+		return sql.SQLStr(str)
+	end
+
+	return "\"" .. DB.MySQLDB:escape(str) .. "\""
 end
 
 /*---------------------------------------------------------
  Database initialize
  ---------------------------------------------------------*/
 function DB.Init()
-	local map = SQLStr(string.lower(game.GetMap()))
+	local map = DB.SQLStr(string.lower(game.GetMap()))
 	DB.Begin()
 		-- Gotta love the difference between SQLite and MySQL
 		local AUTOINCREMENT = DB.CONNECTED_TO_MYSQL and "AUTO_INCREMENT" or "AUTOINCREMENT"
@@ -163,7 +221,9 @@ function DB.Init()
 		]])
 
 		-- Table that holds all position data (jail, consoles, zombie spawns etc.)
-		DB.Query([[
+		-- Queue these queries because other queries depend on the existence of the darkrp_position table
+		-- Race conditions could occur if the queries are executed simultaneously
+		DB.QueueQuery([[
 			CREATE TABLE IF NOT EXISTS darkrp_position(
 				id INTEGER NOT NULL PRIMARY KEY ]]..AUTOINCREMENT..[[,
 				map VARCHAR(45) NOT NULL,
@@ -175,19 +235,24 @@ function DB.Init()
 		]])
 
 		-- team spawns require extra data
-		DB.Query([[
+		DB.QueueQuery([[
 			CREATE TABLE IF NOT EXISTS darkrp_jobspawn(
 				id INTEGER NOT NULL PRIMARY KEY,
-				team INTEGER NOT NULL,
-
-				FOREIGN KEY(id) REFERENCES darkrp_position(id)
-					ON UPDATE CASCADE
-					ON DELETE CASCADE
+				team INTEGER NOT NULL
 			);
 		]])
 
+		if DB.CONNECTED_TO_MYSQL then
+			DB.QueueQuery([[
+				ALTER TABLE darkrp_jobspawn ADD FOREIGN KEY(id) REFERENCES darkrp_position(id)
+					ON UPDATE CASCADE
+					ON DELETE CASCADE;
+			]])
+		end
+
+
 		-- Consoles have to be spawned in an angle
-		DB.Query([[
+		DB.QueueQuery([[
 			CREATE TABLE IF NOT EXISTS darkrp_console(
 				id INTEGER NOT NULL PRIMARY KEY,
 				pitch INTEGER NOT NULL,
@@ -273,7 +338,6 @@ function DB.Init()
 					end
 
 					if not found then return end
-
 					DB.Query([[
 						CREATE TRIGGER JobPositionFKDelete
 							AFTER DELETE ON darkrp_position
@@ -308,82 +372,83 @@ function DB.Init()
 					END;
 			]])
 		end
-	DB.Commit()
+	DB.Commit(function() -- Initialize the data after all the tables have been created
 
-	-- Update older version of database to the current database
-	-- Only run when one of the older tables exist
-	local updateQuery = [[SELECT name FROM sqlite_master WHERE type="table" AND name="darkrp_cvars";]]
-	if DB.CONNECTED_TO_MYSQL then
-		updateQuery = [[show tables like "darkrp_cvars";]]
-	end
-
-	DB.QueryValue(updateQuery, function(data)
-		if data == "darkrp_cvars" then
-			print("UPGRADING DATABASE!")
-			DB.UpdateDatabase()
+		-- Update older version of database to the current database
+		-- Only run when one of the older tables exist
+		local updateQuery = [[SELECT name FROM sqlite_master WHERE type="table" AND name="darkrp_cvars";]]
+		if DB.CONNECTED_TO_MYSQL then
+			updateQuery = [[show tables like "darkrp_cvars";]]
 		end
-	end)
 
-	DB.SetUpNonOwnableDoors()
-	DB.SetUpTeamOwnableDoors()
-	DB.SetUpGroupDoors()
-	DB.LoadConsoles()
+		DB.QueryValue(updateQuery, function(data)
+			if data == "darkrp_cvars" then
+				print("UPGRADING DATABASE!")
+				DB.UpdateDatabase()
+			end
+		end)
 
-	DB.Query("SELECT * FROM darkrp_cvar;", function(settings)
-		for k,v in pairs(settings or {}) do
-			RunConsoleCommand(v.var, v.value)
-		end
-	end)
+		DB.SetUpNonOwnableDoors()
+		DB.SetUpTeamOwnableDoors()
+		DB.SetUpGroupDoors()
+		DB.LoadConsoles()
 
-	DB.JailPos = DB.JailPos or {}
-	zombieSpawns = zombieSpawns or {}
-	DB.Query([[SELECT * FROM darkrp_position WHERE type IN('J', 'Z') AND map = ]] .. map .. [[;]], function(data)
-		for k,v in pairs(data or {}) do
-			if v.type == "J" then
-				table.insert(DB.JailPos, v)
-			elseif v.type == "Z" then
-				table.insert(zombieSpawns, v)
+		DB.Query("SELECT * FROM darkrp_cvar;", function(settings)
+			for k,v in pairs(settings or {}) do
+				RunConsoleCommand(v.var, v.value)
+			end
+		end)
+
+		DB.JailPos = DB.JailPos or {}
+		zombieSpawns = zombieSpawns or {}
+		DB.Query([[SELECT * FROM darkrp_position WHERE type IN('J', 'Z') AND map = ]] .. map .. [[;]], function(data)
+			for k,v in pairs(data or {}) do
+				if v.type == "J" then
+					table.insert(DB.JailPos, v)
+				elseif v.type == "Z" then
+					table.insert(zombieSpawns, v)
+				end
+			end
+
+			if table.Count(DB.JailPos) == 0 then
+				DB.CreateJailPos()
+				return
+			end
+			if table.Count(zombieSpawns) == 0 then
+				DB.CreateZombiePos()
+				return
+			end
+
+			jail_positions = nil
+		end)
+
+		DB.TeamSpawns = {}
+		DB.Query("SELECT * FROM darkrp_position NATURAL JOIN darkrp_jobspawn WHERE map = "..map..";", function(data)
+			if not data or table.Count(data) == 0 then
+				DB.CreateSpawnPos()
+				return
+			end
+
+			team_spawn_positions = nil
+
+			DB.TeamSpawns = data
+		end)
+
+		if DB.CONNECTED_TO_MYSQL then -- In a listen server, the connection with the external database is often made AFTER the listen server host has joined,
+									--so he walks around with the settings from the SQLite database
+			for k,v in pairs(player.GetAll()) do
+				local UniqueID = sql.SQLStr(v:UniqueID())
+				DB.Query([[SELECT * FROM darkrp_player WHERE uid = ]].. UniqueID ..[[;]], function(data)
+					if not data or not data[1] then return end
+
+					local Data = data[1]
+					v:SetDarkRPVar("rpname", Data.rpname)
+					v:SetSelfDarkRPVar("salary", Data.salary)
+					v:SetDarkRPVar("money", Data.wallet)
+				end)
 			end
 		end
-
-		if table.Count(DB.JailPos) == 0 then
-			DB.CreateJailPos()
-			return
-		end
-		if table.Count(zombieSpawns) == 0 then
-			DB.CreateZombiePos()
-			return
-		end
-
-		jail_positions = nil
 	end)
-
-	DB.TeamSpawns = {}
-	DB.Query("SELECT * FROM darkrp_position NATURAL JOIN darkrp_jobspawn WHERE map = "..map..";", function(data)
-		if not data or table.Count(data) == 0 then
-			DB.CreateSpawnPos()
-			return
-		end
-
-		team_spawn_positions = nil
-
-		DB.TeamSpawns = data
-	end)
-
-	if DB.CONNECTED_TO_MYSQL then -- In a listen server, the connection with the external database is often made AFTER the listen server host has joined,
-								--so he walks around with the settings from the SQLite database
-		for k,v in pairs(player.GetAll()) do
-			local UniqueID = sql.SQLStr(v:UniqueID())
-			DB.Query([[SELECT * FROM darkrp_player WHERE uid = ]].. UniqueID ..[[;]], function(data)
-				if not data or not data[1] then return end
-
-				local Data = data[1]
-				v:SetDarkRPVar("rpname", Data.rpname)
-				v:SetSelfDarkRPVar("salary", Data.salary)
-				v:SetDarkRPVar("money", Data.wallet)
-			end)
-		end
-	end
 end
 
 /*---------------------------------------------------------------------------
@@ -392,7 +457,7 @@ Updating the older database to work with the current version
 ---------------------------------------------------------------------------*/
 function DB.UpdateDatabase()
 	print("CONVERTING DATABASE")
-	-- Start transaction. The queries must either all be executed or rolled back
+	-- Start transaction.
 	DB.Begin()
 
 	-- CVars
@@ -458,7 +523,7 @@ function DB.UpdateDatabase()
 
 				DB.Query([[INSERT INTO darkrp_player VALUES(]]
 					..uniqueID..[[,]]
-					..((v.name == "NULL" or not v.name) and "NULL" or sql.SQLStr(v.name))..[[,]]
+					..((v.name == "NULL" or not v.name) and "NULL" or DB.SQLStr(v.name))..[[,]]
 					..((v.salary == "NULL" or not v.salary) and GAMEMODE.Config.normalsalary or v.salary)..[[,]]
 					..v.amount..[[);]])
 			end
@@ -496,7 +561,7 @@ function DB.CreateZombiePos()
 	DB.Begin()
 		for k, v in pairs(zombie_spawn_positions) do
 			if map == string.lower(v[1]) then
-				DB.Query("INSERT INTO darkrp_position VALUES(NULL, " .. sql.SQLStr(map) .. ", \"Z\", " .. v[2] .. ", " .. v[3] .. ", " .. v[4] .. ");")
+				DB.Query("INSERT INTO darkrp_position VALUES(NULL, " .. DB.SQLStr(map) .. ", \"Z\", " .. v[2] .. ", " .. v[3] .. ", " .. v[4] .. ");")
 			end
 		end
 	DB.Commit()
@@ -505,9 +570,9 @@ end
 function DB.StoreZombies()
 	local map = string.lower(game.GetMap())
 	DB.Begin()
-	DB.Query([[DELETE FROM darkrp_position WHERE type = 'Z' AND map = ]] .. sql.SQLStr(map) .. ";", function()
+	DB.Query([[DELETE FROM darkrp_position WHERE type = 'Z' AND map = ]] .. DB.SQLStr(map) .. ";", function()
 		for k, v in pairs(zombieSpawns) do
-			DB.Query("INSERT INTO darkrp_position VALUES(NULL, " .. sql.SQLStr(map) .. ", 'Z', " .. v.x .. ", " .. v.y .. ", " .. v.z .. ");")
+			DB.Query("INSERT INTO darkrp_position VALUES(NULL, " .. DB.SQLStr(map) .. ", 'Z', " .. v.x .. ", " .. v.y .. ", " .. v.z .. ");")
 		end
 	end)
 	DB.Commit()
@@ -518,7 +583,7 @@ function DB.RetrieveZombies(callback)
 	if zombieSpawns and table.Count(zombieSpawns) > 0 and not FirstZombieSpawn then callback() return zombieSpawns end
 	FirstZombieSpawn = false
 	zombieSpawns = {}
-	DB.Query([[SELECT * FROM darkrp_position WHERE type = 'Z' AND map = ]] .. sql.SQLStr(string.lower(game.GetMap())) .. ";", function(r)
+	DB.Query([[SELECT * FROM darkrp_position WHERE type = 'Z' AND map = ]] .. DB.SQLStr(string.lower(game.GetMap())) .. ";", function(r)
 		if not r then callback() return end
 		for k,v in pairs(r) do
 			zombieSpawns[k] = Vector(v.x, v.y, v.z)
@@ -541,10 +606,10 @@ function DB.CreateJailPos()
 	local map = string.lower(game.GetMap())
 
 	DB.Begin()
-		DB.Query([[DELETE FROM darkrp_position WHERE type = "J" AND map = ]].. sql.SQLStr(map)..[[;]])
+		DB.Query([[DELETE FROM darkrp_position WHERE type = "J" AND map = ]].. DB.SQLStr(map)..[[;]])
 		for k, v in pairs(jail_positions) do
 			if map == string.lower(v[1]) then
-				DB.Query("INSERT INTO darkrp_position VALUES(NULL, " .. sql.SQLStr(map) .. ", 'J', " .. v[2] .. ", " .. v[3] .. ", " .. v[4] .. ");")
+				DB.Query("INSERT INTO darkrp_position VALUES(NULL, " .. DB.SQLStr(map) .. ", 'J', " .. v[2] .. ", " .. v[3] .. ", " .. v[4] .. ");")
 				table.insert(DB.JailPos, {map = map, x = v[2], y = v[3], z = v[4]})
 			end
 		end
@@ -555,23 +620,22 @@ local JailIndex = 1 -- Used to circulate through the jailpos table
 function DB.StoreJailPos(ply, addingPos)
 	local map = string.lower(game.GetMap())
 	local pos = string.Explode(" ", tostring(ply:GetPos()))
-	DB.QueryValue("SELECT COUNT(*) FROM darkrp_position WHERE type = 'J' AND map = " .. sql.SQLStr(map) .. ";", function(already)
+	DB.QueryValue("SELECT COUNT(*) FROM darkrp_position WHERE type = 'J' AND map = " .. DB.SQLStr(map) .. ";", function(already)
 		if not already or already == 0 then
-			DB.Query("INSERT INTO darkrp_position VALUES(NULL, " .. sql.SQLStr(map) .. ", 'J', " .. pos[1] .. ", " .. pos[2] .. ", " .. pos[3] .. ");")
+			DB.Query("INSERT INTO darkrp_position VALUES(NULL, " .. DB.SQLStr(map) .. ", 'J', " .. pos[1] .. ", " .. pos[2] .. ", " .. pos[3] .. ");")
 			GAMEMODE:Notify(ply, 0, 4,  LANGUAGE.created_first_jailpos)
 
 			return
 		end
 
 		if addingPos then
-			DB.Query("INSERT INTO darkrp_position VALUES(NULL, " .. sql.SQLStr(map) .. ", 'J', " .. pos[1] .. ", " .. pos[2] .. ", " .. pos[3] .. ");")
+			DB.Query("INSERT INTO darkrp_position VALUES(NULL, " .. DB.SQLStr(map) .. ", 'J', " .. pos[1] .. ", " .. pos[2] .. ", " .. pos[3] .. ");")
 
 			table.insert(DB.JailPos, {map = map, x = pos[1], y = pos[2], z = pos[3], type = "J"})
 			GAMEMODE:Notify(ply, 0, 4,  LANGUAGE.added_jailpos)
 		else
-			DB.Begin()
-			DB.Query("DELETE FROM darkrp_position WHERE type = 'J' AND map = " .. sql.SQLStr(map) .. ";", function()
-				DB.Query("INSERT INTO darkrp_position VALUES(NULL, " .. sql.SQLStr(map) .. ", 'J', " .. pos[1] .. ", " .. pos[2] .. ", " .. pos[3] .. ");", DB.Commit)
+			DB.Query("DELETE FROM darkrp_position WHERE type = 'J' AND map = " .. DB.SQLStr(map) .. ";", function()
+				DB.Query("INSERT INTO darkrp_position VALUES(NULL, " .. DB.SQLStr(map) .. ", 'J', " .. pos[1] .. ", " .. pos[2] .. ", " .. pos[3] .. ");")
 
 
 				DB.JailPos = {[1] = {map = map, x = pos[1], y = pos[2], z = pos[3], type = "J"}}
@@ -595,7 +659,7 @@ function DB.RetrieveJailPos()
 end
 
 function DB.SaveSetting(setting, value)
-	DB.Query("REPLACE INTO darkrp_cvar VALUES("..sql.SQLStr(setting)..", "..sql.SQLStr(value)..");")
+	DB.Query("REPLACE INTO darkrp_cvar VALUES("..DB.SQLStr(setting)..", "..DB.SQLStr(value)..");")
 end
 
 function DB.CountJailPos()
@@ -605,11 +669,11 @@ end
 function DB.StoreTeamSpawnPos(t, pos)
 	local map = string.lower(game.GetMap())
 
-	DB.Query([[DELETE FROM darkrp_position WHERE map = ]] .. sql.SQLStr(map) .. [[ AND id IN (SELECT id FROM darkrp_jobspawn WHERE team = ]] .. t .. [[)]])
+	DB.Query([[DELETE FROM darkrp_position WHERE map = ]] .. DB.SQLStr(map) .. [[ AND id IN (SELECT id FROM darkrp_jobspawn WHERE team = ]] .. t .. [[)]])
 
-	DB.Query([[INSERT INTO darkrp_position VALUES(NULL, ]] .. sql.SQLStr(map) .. [[, "T", ]] .. pos[1] .. [[, ]] .. pos[2] .. [[, ]] .. pos[3] .. [[);]]
+	DB.Query([[INSERT INTO darkrp_position VALUES(NULL, ]] .. DB.SQLStr(map) .. [[, "T", ]] .. pos[1] .. [[, ]] .. pos[2] .. [[, ]] .. pos[3] .. [[);]]
 		, function()
-		DB.QueryValue([[SELECT MAX(id) FROM darkrp_position WHERE map = ]] .. sql.SQLStr(map) .. [[ AND type = "T";]], function(id)
+		DB.QueryValue([[SELECT MAX(id) FROM darkrp_position WHERE map = ]] .. DB.SQLStr(map) .. [[ AND type = "T";]], function(id)
 			if not id then return end
 			DB.Query([[INSERT INTO darkrp_jobspawn VALUES(]] .. id .. [[, ]] .. t .. [[);]])
 			table.insert(DB.TeamSpawns, {id = id, map = map, x = pos[1], y = pos[2], z = pos[3], team = t})
@@ -622,9 +686,9 @@ end
 function DB.AddTeamSpawnPos(t, pos)
 	local map = string.lower(game.GetMap())
 
-	DB.Query([[INSERT INTO darkrp_position VALUES(NULL, ]] .. sql.SQLStr(map) .. [[, "T", ]] .. pos[1] .. [[, ]] .. pos[2] .. [[, ]] .. pos[3] .. [[);]]
+	DB.Query([[INSERT INTO darkrp_position VALUES(NULL, ]] .. DB.SQLStr(map) .. [[, "T", ]] .. pos[1] .. [[, ]] .. pos[2] .. [[, ]] .. pos[3] .. [[);]]
 		, function()
-		DB.QueryValue([[SELECT MAX(id) FROM darkrp_position WHERE map = ]] .. sql.SQLStr(map) .. [[ AND type = "T";]], function(id)
+		DB.QueryValue([[SELECT MAX(id) FROM darkrp_position WHERE map = ]] .. DB.SQLStr(map) .. [[ AND type = "T";]], function(id)
 			if type(id) == "boolean" then return end
 			DB.Query([[INSERT INTO darkrp_jobspawn VALUES(]] .. id .. [[, ]] .. t .. [[);]])
 			table.insert(DB.TeamSpawns, {id = id, map = map, x = pos[1], y = pos[2], z = pos[3], team = t})
@@ -636,7 +700,7 @@ function DB.RemoveTeamSpawnPos(t, callback)
 	local map = string.lower(game.GetMap())
 	DB.Query([[SELECT darkrp_position.id FROM darkrp_position
 		NATURAL JOIN darkrp_jobspawn
-		WHERE map = ]] .. sql.SQLStr(map) .. [[
+		WHERE map = ]] .. DB.SQLStr(map) .. [[
 		AND team = ]].. t ..[[;]], function(data)
 
 		DB.Begin()
@@ -679,11 +743,11 @@ function DB.StoreRPName(ply, name)
 	if not name or string.len(name) < 2 then return end
 	ply:SetDarkRPVar("rpname", name)
 
-	DB.Query([[UPDATE darkrp_player SET rpname = ]] .. sql.SQLStr(name) .. [[ WHERE UID = ]] .. ply:UniqueID() .. ";")
+	DB.Query([[UPDATE darkrp_player SET rpname = ]] .. DB.SQLStr(name) .. [[ WHERE UID = ]] .. ply:UniqueID() .. ";")
 end
 
 function DB.RetrieveRPNames(ply, name, callback)
-	DB.Query("SELECT COUNT(*) AS count FROM darkrp_player WHERE rpname = "..sql.SQLStr(name)..";", function(r)
+	DB.Query("SELECT COUNT(*) AS count FROM darkrp_player WHERE rpname = "..DB.SQLStr(name)..";", function(r)
 		callback(tonumber(r[1].count) > 0)
 	end)
 end
@@ -701,7 +765,7 @@ end
 function DB.CreatePlayerData(ply, name, wallet, salary)
 	DB.Query([[REPLACE INTO darkrp_player VALUES(]] ..
 			ply:UniqueID() .. [[, ]] ..
-			sql.SQLStr(name)  .. [[, ]] ..
+			DB.SQLStr(name)  .. [[, ]] ..
 			salary  .. [[, ]] ..
 			wallet .. ");")
 end
@@ -767,8 +831,8 @@ function DB.StoreDoorOwnability(ent)
 
 	DB.Query([[REPLACE INTO darkrp_door VALUES(]]..
 		ent:DoorIndex() ..[[, ]] ..
-		sql.SQLStr(map) .. [[, ]] ..
-		(ent.DoorData.title and sql.SQLStr(ent.DoorData.title) or "NULL") .. [[, ]] ..
+		DB.SQLStr(map) .. [[, ]] ..
+		(ent.DoorData.title and DB.SQLStr(ent.DoorData.title) or "NULL") .. [[, ]] ..
 		"NULL" .. [[, ]] ..
 		(ent.DoorData.NonOwnable and 1 or 0) .. [[);]])
 end
@@ -776,11 +840,11 @@ end
 function DB.StoreDoorTitle(ent, text)
 	ent.DoorData = ent.DoorData or {}
 	ent.DoorData.title = text
-	DB.Query("UPDATE darkrp_door SET title = " .. sql.SQLStr(text) .. " WHERE map = " .. sql.SQLStr(string.lower(game.GetMap())) .. " AND idx = " .. ent:DoorIndex() .. ";")
+	DB.Query("UPDATE darkrp_door SET title = " .. DB.SQLStr(text) .. " WHERE map = " .. DB.SQLStr(string.lower(game.GetMap())) .. " AND idx = " .. ent:DoorIndex() .. ";")
 end
 
 function DB.SetUpNonOwnableDoors()
-	DB.Query("SELECT idx, title, isLocked, isDisabled FROM darkrp_door WHERE map = " .. sql.SQLStr(string.lower(game.GetMap())) .. ";", function(r)
+	DB.Query("SELECT idx, title, isLocked, isDisabled FROM darkrp_door WHERE map = " .. DB.SQLStr(string.lower(game.GetMap())) .. ";", function(r)
 		if not r then return end
 
 		for _, row in pairs(r) do
@@ -801,16 +865,16 @@ function DB.StoreTeamDoorOwnability(ent)
 	local map = string.lower(game.GetMap())
 	ent.DoorData = ent.DoorData or {}
 
-	DB.Query("DELETE FROM darkrp_jobown WHERE idx = " .. ent:DoorIndex() .. " AND map = " .. sql.SQLStr(map) .. ";")
+	DB.Query("DELETE FROM darkrp_jobown WHERE idx = " .. ent:DoorIndex() .. " AND map = " .. DB.SQLStr(map) .. ";")
 	for k,v in pairs(string.Explode("\n", ent.DoorData.TeamOwn or "")) do
 		if v == "" then continue end
 
-		DB.Query("INSERT INTO darkrp_jobown VALUES("..ent:DoorIndex() .. ", "..sql.SQLStr(map) .. ", " .. v .. ");")
+		DB.Query("INSERT INTO darkrp_jobown VALUES("..ent:DoorIndex() .. ", "..DB.SQLStr(map) .. ", " .. v .. ");")
 	end
 end
 
 function DB.SetUpTeamOwnableDoors()
-	DB.Query("SELECT idx, job FROM darkrp_jobown WHERE map = " .. sql.SQLStr(string.lower(game.GetMap())) .. ";", function(r)
+	DB.Query("SELECT idx, job FROM darkrp_jobown WHERE map = " .. DB.SQLStr(string.lower(game.GetMap())) .. ";", function(r)
 		if not r then return end
 
 		for _, row in pairs(r) do
@@ -825,7 +889,7 @@ function DB.SetUpTeamOwnableDoors()
 end
 
 function DB.SetDoorGroup(ent, group)
-	local map = sql.SQLStr(string.lower(game.GetMap()))
+	local map = DB.SQLStr(string.lower(game.GetMap()))
 	local index = ent:DoorIndex()
 
 	if group == "" then
@@ -833,11 +897,11 @@ function DB.SetDoorGroup(ent, group)
 		return
 	end
 
-	DB.Query("REPLACE INTO darkrp_doorgroups VALUES(" .. index .. ", " .. map .. ", " .. sql.SQLStr(group) .. ");");
+	DB.Query("REPLACE INTO darkrp_doorgroups VALUES(" .. index .. ", " .. map .. ", " .. DB.SQLStr(group) .. ");");
 end
 
 function DB.SetUpGroupDoors()
-	local map = sql.SQLStr(string.lower(game.GetMap()))
+	local map = DB.SQLStr(string.lower(game.GetMap()))
 	DB.Query("SELECT idx, doorgroup FROM darkrp_doorgroups WHERE map = " .. map, function(data)
 		if not data then return end
 
@@ -860,7 +924,7 @@ Consoles
 
 function DB.LoadConsoles()
 	local map = string.lower(game.GetMap())
-	DB.Query("SELECT * FROM darkrp_position NATURAL JOIN darkrp_console WHERE map = " .. sql.SQLStr(map) .. " AND type = 'C';", function(data)
+	DB.Query("SELECT * FROM darkrp_position NATURAL JOIN darkrp_console WHERE map = " .. DB.SQLStr(map) .. " AND type = 'C';", function(data)
 		if data then
 			for k, v in pairs(data) do
 				local console = ents.Create("darkrp_console")
@@ -910,7 +974,7 @@ concommand.Add("rp_CreateConsole", DB.CreateConsole)
 
 function DB.RemoveConsoles(ply, cmd, args)
 	if not ply:IsSuperAdmin() then return end
-	DB.Query("DELETE FROM darkrp_position WHERE map = " .. sql.SQLStr(string.lower(game.GetMap())) .. " AND type = 'C';")
+	DB.Query("DELETE FROM darkrp_position WHERE map = " .. DB.SQLStr(string.lower(game.GetMap())) .. " AND type = 'C';")
 	for k,v in pairs(ents.FindByClass("darkrp_console")) do
 		v:Remove()
 	end

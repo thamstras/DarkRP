@@ -52,14 +52,9 @@ function KnockoutToggle(player, command, args, caller)
 					GAMEMODE:PlayerLoadout(player)
 				end
 				player.WeaponsForSleep = {}
-				local RP = RecipientFilter()
-				RP:RemoveAllPlayers()
-				RP:AddPlayer(player)
-				umsg.Start("DarkRPEffects", RP)
-					umsg.String("colormod")
-					umsg.String("0")
-				umsg.End()
-				RP:AddAllPlayers()
+
+				SendUserMessage("blackScreen", player, false)
+
 				if command == true then
 					player:Arrest()
 				end
@@ -109,15 +104,9 @@ function KnockoutToggle(player, command, args, caller)
 				player:GetTable().BeforeSleepTeam = player:Team()
 				--Make sure noone can pick it up:
 				ragdoll:CPPISetOwner(player)
-				ragdoll.FPPOwner = player:SteamID()
-				local RP = RecipientFilter()
-				RP:RemoveAllPlayers()
-				RP:AddPlayer(player)
-				umsg.Start("DarkRPEffects",RP)
-					umsg.String("colormod")
-					umsg.String("1")
-				umsg.End()
-				RP:AddAllPlayers()
+
+				SendUserMessage("blackScreen", player, true)
+
 				player.SleepSound = CreateSound(ragdoll, "npc/ichthyosaur/water_breath.wav")
 				player.SleepSound:PlayEx(0.10, 100)
 				player.Sleeping = true

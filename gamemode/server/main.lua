@@ -352,14 +352,9 @@ end
 AddChatCommand("/removespawn", RemoveSpawnPos)
 
 function GM:ShowTeam(ply)
-	umsg.Start("KeysMenu", ply)
-		umsg.Bool(ply:GetEyeTrace().Entity:IsVehicle())
-	umsg.End()
 end
 
 function GM:ShowHelp(ply)
-	umsg.Start("ToggleHelp", ply)
-	umsg.End()
 end
 
 local function LookPersonUp(ply, cmd, args)
@@ -658,7 +653,7 @@ local function BuyShipment(ply, args)
 	local crate = ents.Create("spawned_shipment")
 	crate.SID = ply.SID
 	crate:Setowning_ent(ply)
-	crate:SetContents(foundKey, found.amount, found.weight)
+	crate:SetContents(foundKey, found.amount)
 
 	crate:SetPos(Vector(tr.HitPos.x, tr.HitPos.y, tr.HitPos.z))
 	crate.nodupe = true
@@ -748,58 +743,6 @@ local function BuyVehicle(ply, args)
 	return ""
 end
 AddChatCommand("/buyvehicle", BuyVehicle)
-
-for k,v in pairs(DarkRPEntities) do
-	local function buythis(ply, args)
-		if ply:isArrested() then return "" end
-		if type(v.allowed) == "table" and not table.HasValue(v.allowed, ply:Team()) then
-			GAMEMODE:Notify(ply, 1, 4, string.format(LANGUAGE.incorrect_job, v.cmd))
-			return ""
-		end
-		local cmdname = string.gsub(v.ent, " ", "_")
-
-		if v.customCheck and not v.customCheck(ply) then
-			GAMEMODE:Notify(ply, 1, 4, v.CustomCheckFailMsg or "You're not allowed to purchase this item")
-			return ""
-		end
-
-		local max = tonumber(v.max or 3)
-
-		if ply["max"..cmdname] and tonumber(ply["max"..cmdname]) >= tonumber(max) then
-			GAMEMODE:Notify(ply, 1, 4, string.format(LANGUAGE.limit, v.cmd))
-			return ""
-		end
-
-		if not ply:CanAfford(v.price) then
-			GAMEMODE:Notify(ply, 1, 4, string.format(LANGUAGE.cant_afford, v.cmd))
-			return ""
-		end
-		ply:AddMoney(-v.price)
-
-		local trace = {}
-		trace.start = ply:EyePos()
-		trace.endpos = trace.start + ply:GetAimVector() * 85
-		trace.filter = ply
-
-		local tr = util.TraceLine(trace)
-
-		local item = ents.Create(v.ent)
-		item.dt = item.dt or {}
-		item.dt.owning_ent = ply
-		if item.Setowning_ent then item:Setowning_ent(ply) end
-		item:SetPos(tr.HitPos)
-		item.SID = ply.SID
-		item.onlyremover = true
-		item:Spawn()
-		GAMEMODE:Notify(ply, 0, 4, string.format(LANGUAGE.you_bought_x, v.name, CUR..v.price))
-		if not ply["max"..cmdname] then
-			ply["max"..cmdname] = 0
-		end
-		ply["max"..cmdname] = ply["max"..cmdname] + 1
-		return ""
-	end
-	AddChatCommand(v.cmd, buythis)
-end
 
 local function BuyAmmo(ply, args)
 	if args == "" then return "" end
@@ -962,22 +905,24 @@ local function ChangeJob(ply, args)
 end
 AddChatCommand("/job", ChangeJob)
 
-local function FinishDemote(choice, v)
-	v.IsBeingDemoted = nil
+local function FinishDemote(vote, choice)
+	local target = vote.target
+
+	target.IsBeingDemoted = nil
 	if choice == 1 then
-		v:TeamBan()
-		if v:Alive() then
-			v:ChangeTeam(TEAM_CITIZEN, true)
-			if v:isArrested() then
-				v:Arrest()
+		target:TeamBan()
+		if target:Alive() then
+			target:ChangeTeam(TEAM_CITIZEN, true)
+			if target:isArrested() then
+				target:Arrest()
 			end
 		else
-			v.demotedWhileDead = true
+			target.demotedWhileDead = true
 		end
 
-		GAMEMODE:NotifyAll(0, 4, string.format(LANGUAGE.demoted, v:Nick()))
+		GAMEMODE:NotifyAll(0, 4, string.format(LANGUAGE.demoted, target:Nick()))
 	else
-		GAMEMODE:NotifyAll(1, 4, string.format(LANGUAGE.demoted_not, v:Nick()))
+		GAMEMODE:NotifyAll(1, 4, string.format(LANGUAGE.demoted_not, target:Nick()))
 	end
 end
 
@@ -1002,6 +947,13 @@ local function Demote(ply, args)
 		return ""
 	end
 
+	local canDemote, message = hook.Call("CanDemote", GAMEMODE, ply, p, reason)
+	if canDemote == false then
+		GAMEMODE:Notify(ply, 1, 4, message or string.format(LANGUAGE.unable, "demote", ""))
+
+		return ""
+	end
+
 	if p then
 		if CurTime() - ply.LastVoteCop < 80 then
 			GAMEMODE:Notify(ply, 1, 4, string.format(LANGUAGE.have_to_wait, math.ceil(80 - (CurTime() - ply:GetTable().LastVoteCop)), "/demote"))
@@ -1015,7 +967,15 @@ local function Demote(ply, args)
 			DB.Log(string.format(LANGUAGE.demote_vote_started, ply:Nick(), p:Nick()) .. " (" .. reason .. ")",
 				false, Color(255, 128, 255, 255))
 			p.IsBeingDemoted = true
-			GAMEMODE.vote:Create(p:Nick() .. ":\n"..string.format(LANGUAGE.demote_vote_text, reason), p:EntIndex() .. "votecop"..ply:EntIndex(), p, 20, FinishDemote, true)
+
+			GAMEMODE.vote:create(p:Nick() .. ":\n"..string.format(LANGUAGE.demote_vote_text, reason), "demote", p, 20, FinishDemote,
+			{
+				[p] = true,
+				[ply] = true
+			}, function(vote)
+				if not IsValid(vote.target) then return end
+				vote.target.IsBeingDemoted = nil
+			end)
 			ply:GetTable().LastVoteCop = CurTime()
 		end
 		return ""
@@ -1926,14 +1886,14 @@ local function rp_RevokeLicense(ply, cmd, args)
 end
 concommand.Add("rp_revokelicense", rp_RevokeLicense)
 
-local function FinishRevokeLicense(choice, v)
+local function FinishRevokeLicense(vote, win)
 	if choice == 1 then
-		v:SetDarkRPVar("HasGunlicense", false)
-		v:StripWeapons()
-		GAMEMODE:PlayerLoadout(v)
-		GAMEMODE:NotifyAll(0, 4, string.format(LANGUAGE.gunlicense_removed, v:Nick()))
+		vote.target:SetDarkRPVar("HasGunlicense", false)
+		vote.target:StripWeapons()
+		GAMEMODE:PlayerLoadout(vote.target)
+		GAMEMODE:NotifyAll(0, 4, string.format(LANGUAGE.gunlicense_removed, vote.target:Nick()))
 	else
-		GAMEMODE:NotifyAll(0, 4, string.format(LANGUAGE.gunlicense_not_removed, v:Nick()))
+		GAMEMODE:NotifyAll(0, 4, string.format(LANGUAGE.gunlicense_not_removed, vote.target:Nick()))
 	end
 end
 
@@ -1962,7 +1922,11 @@ local function VoteRemoveLicense(ply, args)
 			GAMEMODE:Notify(ply, 1, 4, string.format(LANGUAGE.unable, "/demotelicense", ""))
 		else
 			GAMEMODE:NotifyAll(0, 4, string.format(LANGUAGE.gunlicense_remove_vote_text, ply:Nick(), p:Nick()))
-			GAMEMODE.vote:Create(p:Nick() .. ":\n"..string.format(LANGUAGE.gunlicense_remove_vote_text2, reason), p:EntIndex() .. "votecop"..ply:EntIndex(), p, 20, FinishRevokeLicense, true)
+			GAMEMODE.vote:create(p:Nick() .. ":\n"..string.format(LANGUAGE.gunlicense_remove_vote_text2, reason), "removegunlicense", p, 20,  FinishRevokeLicense,
+			{
+				[p] = true,
+				[ply] = true
+			})
 			ply:GetTable().LastVoteCop = CurTime()
 			GAMEMODE:Notify(ply, 0, 4, LANGUAGE.vote_started)
 		end

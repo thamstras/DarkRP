@@ -57,8 +57,6 @@ GM.Config.showdeaths 					= false
 GM.Config.deathpov 						= true
 -- decalcleaner - Enable/Disable clearing ever players decals.
 GM.Config.decalcleaner 					= false
--- dmautokick - Enable/disable Auto-kick of deathmatchers.
-GM.Config.dmautokick 					= false
 -- doorwarrants - Enable/disable Warrant requirement to enter property.
 GM.Config.doorwarrants 					= true
 -- dropmoneyondeath - Enable/disable whether people drop money on death.
@@ -145,8 +143,6 @@ GM.Config.showcrosshairs				= true
 /*
 Value settings
 */
--- hobownership - Enable/Disable hobos being able to buy doors | 1 = Allowed to buy doors, 0 = Not allowed to buy doors
-GM.Config.hobownership 					= 0
 -- adminweapons - Who can spawn weapons: 0: admins only, 1: supadmins only, 2: no one
 GM.Config.adminweapons					= 1
 -- arrestspeed - Sets the max arrest speed.
@@ -159,10 +155,6 @@ GM.Config.deathfee						= 30
 GM.Config.decaltimer					= 120
 -- demotetime - Number of seconds before a player can rejoin a team after demotion from that team.
 GM.Config.demotetime					= 120
--- dmgracetime - Number of seconds after killing a player that the killer will be watched for DM.
-GM.Config.dmgracetime					= 30
--- dmmaxkills - Max number of kills allowed during rp_dm_gracetime to avoid being auto-kicked for DM.
-GM.Config.dmmaxkills					= 3
 -- doorcost - Sets the cost of a door.
 GM.Config.doorcost						= 30
 -- entremovedelay - how long to wait before removing a bought entity after disconnect.
@@ -269,5 +261,6 @@ GM.Config.DisabledModules = {
 	["events"] = false,
 	["hungermod"] = true,
 	["playerscale"] = false,
-	["sleep"] = false
+	["sleep"] = false,
+	["voterestrictions"] = true
 }

@@ -260,6 +260,7 @@ function FPP.AdminMenu(Panel)
 	BlockedModelsLabel:SizeToContents()
 
 	addchk("Blocked models enabled", {"FPP_BLOCKMODELSETTINGS1", "toggle"}, blockedmodels)
+	addchk("Apply to props only", {"FPP_BLOCKMODELSETTINGS1", "propsonly"}, blockedmodels)
 	addchk("The blocked models list is a white list", {"FPP_BLOCKMODELSETTINGS1", "iswhitelist"}, blockedmodels)
 
 	local BlockedModelsAddLA = blockedmodels:Add("DButton")
@@ -1124,7 +1125,7 @@ properties.Add("addFPPBlocked",
 	MenuIcon	=	"icon16/cross.png",
 
 	Filter		=	function(self, ent, ply)
-						if not IsValid(ent) then return end
+						if not IsValid(ent) or ent:IsPlayer() then return false end
 						return ply:IsSuperAdmin()
 					end,
 
@@ -1141,7 +1142,7 @@ properties.Add("removeFPPBlocked",
 	MenuIcon	=	"icon16/tick.png",
 
 	Filter		=	function(self, ent, ply)
-						if not IsValid(ent) then return end
+						if not IsValid(ent) or ent:IsPlayer() then return false end
 						return ply:IsSuperAdmin()
 					end,
 

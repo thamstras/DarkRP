@@ -103,7 +103,7 @@ local function AddBlockedModel(ply, cmd, args)
 	if FPP.BlockedModels[model] then FPP.Notify(ply, "This model is already in the black/whitelist", false) return end
 
 	FPP.BlockedModels[model] = true
-	DB.Query("INSERT INTO FPP_BLOCKEDMODELS1 VALUES("..sql.SQLStr(model)..");")
+	DB.Query("REPLACE INTO FPP_BLOCKEDMODELS1 VALUES("..sql.SQLStr(model)..");")
 
 	FPP.NotifyAll(((ply.Nick and ply:Nick()) or "Console").. " added ".. model .. " to the blocked models black/whitelist", true)
 end
@@ -340,33 +340,30 @@ local function RetrieveGroups()
 			FPP.Groups['default'].allowdefault = true
 			return
 		end -- if there are no groups then there isn't much to load
+
 		for k,v in pairs(data) do
 			FPP.Groups[v.groupname] = {}
 			FPP.Groups[v.groupname].tools = {}
 			FPP.Groups[v.groupname].allowdefault = util.tobool(v.allowdefault)
 		end
-	end)
 
-	DB.Query("SELECT * FROM FPP_GROUPTOOL;", function(data)
-		if not data then return end
+		DB.Query("SELECT * FROM FPP_GROUPTOOL;", function(data)
+			if not data then return end
 
-		for k,v in pairs(data) do
-			FPP.Groups[v.groupname] = FPP.Groups[v.groupname] or {}
-			FPP.Groups[v.groupname].tools = FPP.Groups[v.groupname].tools or {}
+			for k,v in pairs(data) do
+				FPP.Groups[v.groupname] = FPP.Groups[v.groupname] or {}
+				FPP.Groups[v.groupname].tools = FPP.Groups[v.groupname].tools or {}
 
-			table.insert(FPP.Groups[v.groupname].tools, v.tool)
-		end
-	end)
-
-	DB.Query("SELECT * FROM FPP_GROUPMEMBERS1;", function(members)
-		if type(members) ~= "table" then return end
-		for _,v in pairs(members) do
-			FPP.GroupMembers[v.steamid] = v.groupname
-			if not FPP.Groups[v.groupname] and (not FAdmin or not FAdmin.Access.Groups[group]) then -- if group does not exist then set to default
-				FPP.GroupMembers[v.steamid] = nil
-				DB.Query("DELETE FROM FPP_GROUPMEMBERS1 WHERE steamid = "..sql.SQLStr(v.steamid)..";")
+				table.insert(FPP.Groups[v.groupname].tools, v.tool)
 			end
-		end
+		end)
+
+		DB.Query("SELECT * FROM FPP_GROUPMEMBERS1;", function(members)
+			if type(members) ~= "table" then return end
+			for _,v in pairs(members) do
+				FPP.GroupMembers[v.steamid] = v.groupname
+			end
+		end)
 	end)
 end
 
@@ -724,31 +721,31 @@ Load all FPP settings
 ---------------------------------------------------------------------------*/
 function FPP.Init()
 	DB.Begin()
-			DB.Query("CREATE TABLE IF NOT EXISTS FPP_BLOCKED1(id INTEGER NOT NULL, var VARCHAR(40) NOT NULL, setting VARCHAR(100) NOT NULL, PRIMARY KEY(id));")
-			DB.Query("CREATE TABLE IF NOT EXISTS FPP_PHYSGUN1(var VARCHAR(40) NOT NULL, setting INTEGER NOT NULL, PRIMARY KEY(var));")
-			DB.Query("CREATE TABLE IF NOT EXISTS FPP_GRAVGUN1(var VARCHAR(40) NOT NULL, setting INTEGER NOT NULL, PRIMARY KEY(var));")
-			DB.Query("CREATE TABLE IF NOT EXISTS FPP_TOOLGUN1(var VARCHAR(40) NOT NULL, setting INTEGER NOT NULL, PRIMARY KEY(var));")
-			DB.Query("CREATE TABLE IF NOT EXISTS FPP_PLAYERUSE1(var VARCHAR(40) NOT NULL, setting INTEGER NOT NULL, PRIMARY KEY(var));")
-			DB.Query("CREATE TABLE IF NOT EXISTS FPP_ENTITYDAMAGE1(var VARCHAR(40) NOT NULL, setting INTEGER NOT NULL, PRIMARY KEY(var));")
-			DB.Query("CREATE TABLE IF NOT EXISTS FPP_GLOBALSETTINGS1(var VARCHAR(40) NOT NULL, setting INTEGER NOT NULL, PRIMARY KEY(var));")
-			DB.Query("CREATE TABLE IF NOT EXISTS FPP_BLOCKMODELSETTINGS1(var VARCHAR(40) NOT NULL, setting INTEGER NOT NULL, PRIMARY KEY(var));")
+		DB.QueueQuery("CREATE TABLE IF NOT EXISTS FPP_BLOCKED1(id INTEGER NOT NULL, var VARCHAR(40) NOT NULL, setting VARCHAR(100) NOT NULL, PRIMARY KEY(id));")
+		DB.QueueQuery("CREATE TABLE IF NOT EXISTS FPP_PHYSGUN1(var VARCHAR(40) NOT NULL, setting INTEGER NOT NULL, PRIMARY KEY(var));")
+		DB.QueueQuery("CREATE TABLE IF NOT EXISTS FPP_GRAVGUN1(var VARCHAR(40) NOT NULL, setting INTEGER NOT NULL, PRIMARY KEY(var));")
+		DB.QueueQuery("CREATE TABLE IF NOT EXISTS FPP_TOOLGUN1(var VARCHAR(40) NOT NULL, setting INTEGER NOT NULL, PRIMARY KEY(var));")
+		DB.QueueQuery("CREATE TABLE IF NOT EXISTS FPP_PLAYERUSE1(var VARCHAR(40) NOT NULL, setting INTEGER NOT NULL, PRIMARY KEY(var));")
+		DB.QueueQuery("CREATE TABLE IF NOT EXISTS FPP_ENTITYDAMAGE1(var VARCHAR(40) NOT NULL, setting INTEGER NOT NULL, PRIMARY KEY(var));")
+		DB.QueueQuery("CREATE TABLE IF NOT EXISTS FPP_GLOBALSETTINGS1(var VARCHAR(40) NOT NULL, setting INTEGER NOT NULL, PRIMARY KEY(var));")
+		DB.QueueQuery("CREATE TABLE IF NOT EXISTS FPP_BLOCKMODELSETTINGS1(var VARCHAR(40) NOT NULL, setting INTEGER NOT NULL, PRIMARY KEY(var));")
 
-			DB.Query("CREATE TABLE IF NOT EXISTS FPP_ANTISPAM1(var VARCHAR(40) NOT NULL, setting INTEGER NOT NULL, PRIMARY KEY(var));")
-			DB.Query("CREATE TABLE IF NOT EXISTS FPP_TOOLADMINONLY(toolname VARCHAR(40) NOT NULL, adminonly INTEGER NOT NULL, PRIMARY KEY(toolname));")
-			DB.Query("CREATE TABLE IF NOT EXISTS FPP_TOOLTEAMRESTRICT(toolname VARCHAR(40) NOT NULL, team INTEGER NOT NULL, PRIMARY KEY(toolname, team));")
+		DB.QueueQuery("CREATE TABLE IF NOT EXISTS FPP_ANTISPAM1(var VARCHAR(40) NOT NULL, setting INTEGER NOT NULL, PRIMARY KEY(var));")
+		DB.QueueQuery("CREATE TABLE IF NOT EXISTS FPP_TOOLADMINONLY(toolname VARCHAR(40) NOT NULL, adminonly INTEGER NOT NULL, PRIMARY KEY(toolname));")
+		DB.QueueQuery("CREATE TABLE IF NOT EXISTS FPP_TOOLTEAMRESTRICT(toolname VARCHAR(40) NOT NULL, team INTEGER NOT NULL, PRIMARY KEY(toolname, team));")
 
-			DB.Query("CREATE TABLE IF NOT EXISTS FPP_TOOLRESTRICTPERSON1(toolname VARCHAR(40) NOT NULL, steamid VARCHAR(40) NOT NULL, allow INTEGER NOT NULL, PRIMARY KEY(steamid, toolname));")
-			DB.Query("CREATE TABLE IF NOT EXISTS FPP_GROUPS3(groupname VARCHAR(40) NOT NULL, allowdefault INTEGER NOT NULL, PRIMARY KEY(groupname));")
-			DB.Query("CREATE TABLE IF NOT EXISTS FPP_GROUPTOOL(groupname VARCHAR(40) NOT NULL, tool VARCHAR(45) NOT NULL, PRIMARY KEY(groupname, tool));")
-			DB.Query("CREATE TABLE IF NOT EXISTS FPP_GROUPMEMBERS1(steamid VARCHAR(40) NOT NULL, groupname VARCHAR(40) NOT NULL, PRIMARY KEY(steamid));")
-			DB.Query("CREATE TABLE IF NOT EXISTS FPP_BLOCKEDMODELS1(model VARCHAR(140) NOT NULL PRIMARY KEY);")
-		DB.Commit()
-
+		DB.QueueQuery("CREATE TABLE IF NOT EXISTS FPP_TOOLRESTRICTPERSON1(toolname VARCHAR(40) NOT NULL, steamid VARCHAR(40) NOT NULL, allow INTEGER NOT NULL, PRIMARY KEY(steamid, toolname));")
+		DB.QueueQuery("CREATE TABLE IF NOT EXISTS FPP_GROUPS3(groupname VARCHAR(40) NOT NULL, allowdefault INTEGER NOT NULL, PRIMARY KEY(groupname));")
+		DB.QueueQuery("CREATE TABLE IF NOT EXISTS FPP_GROUPTOOL(groupname VARCHAR(40) NOT NULL, tool VARCHAR(45) NOT NULL, PRIMARY KEY(groupname, tool));")
+		DB.QueueQuery("CREATE TABLE IF NOT EXISTS FPP_GROUPMEMBERS1(steamid VARCHAR(40) NOT NULL, groupname VARCHAR(40) NOT NULL, PRIMARY KEY(steamid));")
+		DB.QueueQuery("CREATE TABLE IF NOT EXISTS FPP_BLOCKEDMODELS1(model VARCHAR(140) NOT NULL PRIMARY KEY);")
+	DB.Commit(function()
 		RetrieveBlocked()
 		RetrieveBlockedModels()
 		RetrieveRestrictedTools()
 		RetrieveGroups()
 		RetrieveSettings()
+	end)
 end
 
 local assbackup = ASS_RegisterPlugin -- Suddenly after witing this code, ASS spamprotection and propprotection broke. I have no clue why. I guess you should use FPP then

@@ -2,21 +2,22 @@
 Create the tables used for banning
 ---------------------------------------------------------------------------*/
 hook.Add("DatabaseInitialized", "FAdmin_CreateMySQLTables", function()
-	DB.Query("CREATE TABLE IF NOT EXISTS FAdminBans(SteamID VARCHAR(25) NOT NULL PRIMARY KEY, Nick VARCHAR(40), BanDate DATETIME, UnbanDate DATETIME, Reason VARCHAR(100), AdminName VARCHAR(40), Admin_steam VARCHAR(25));")
+	DB.Query("CREATE TABLE IF NOT EXISTS FAdminBans(SteamID VARCHAR(25) NOT NULL PRIMARY KEY, Nick VARCHAR(40), BanDate DATETIME, UnbanDate DATETIME, Reason VARCHAR(100), AdminName VARCHAR(40), Admin_steam VARCHAR(25));", function()
 
-	hook.Call("FAdmin_RetrieveBans", nil)
+		hook.Call("FAdmin_RetrieveBans", nil)
+	end)
 end)
 
 /*---------------------------------------------------------------------------
 Store a ban in the MySQL tables
 ---------------------------------------------------------------------------*/
 hook.Add("FAdmin_StoreBan", "MySQLBans", function(SteamID, Nick, Duration, Reason, AdminName, Admin_steam)
-	local steam = SQLStr(SteamID)
-	local nick = Nick and SQLStr(Nick) or "NULL"
+	local steam = DB.SQLStr(SteamID)
+	local nick = Nick and DB.SQLStr(Nick) or "NULL"
 	local bandate = DB.CONNECTED_TO_MYSQL and "NOW()" or "datetime('now')"
-	local reason = Reason and SQLStr(Reason) or "NULL"
-	local admin = AdminName and SQLStr(AdminName) or "NULL"
-	local adminsteam = Admin_steam and SQLStr(Admin_steam) or "NULL"
+	local reason = Reason and DB.SQLStr(Reason) or "NULL"
+	local admin = AdminName and DB.SQLStr(AdminName) or "NULL"
+	local adminsteam = Admin_steam and DB.SQLStr(Admin_steam) or "NULL"
 
 	local duration
 	if DB.CONNECTED_TO_MYSQL then
@@ -34,7 +35,7 @@ end)
 Unban someone
 ---------------------------------------------------------------------------*/
 hook.Add("FAdmin_UnBan", "FAdmin_MySQLUnban", function(ply, steamID)
-	DB.Query("DELETE FROM FAdminBans WHERE steamID = ".. SQLStr(steamID))
+	DB.Query("DELETE FROM FAdminBans WHERE steamID = ".. DB.SQLStr(steamID))
 end)
 
 /*---------------------------------------------------------------------------

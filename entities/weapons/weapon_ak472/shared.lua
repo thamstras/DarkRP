@@ -6,7 +6,7 @@ if CLIENT then
 	SWEP.PrintName = "AK47"
 	SWEP.Author = "Rickster"
 	SWEP.Slot = 3
-	SWEP.SlotPos = 1
+	SWEP.SlotPos = 0
 	SWEP.IconLetter = "b"
 
 	killicon.AddFont("weapon_ak47", "CSKillIcons", SWEP.IconLetter, Color(255, 80, 0, 255))
@@ -17,7 +17,8 @@ SWEP.Base = "weapon_cs_base2"
 SWEP.Spawnable = true
 SWEP.AdminSpawnable = true
 
-SWEP.ViewModel = "models/weapons/v_rif_ak47.mdl"
+SWEP.UseHands = true
+SWEP.ViewModel = "models/weapons/cstrike/c_rif_ak47.mdl"
 SWEP.WorldModel = "models/weapons/w_rif_ak47.mdl"
 
 SWEP.Weight = 5
@@ -42,7 +43,7 @@ SWEP.Secondary.DefaultClip = -1
 SWEP.Secondary.Automatic = false
 SWEP.Secondary.Ammo = "none"
 
-SWEP.IronSightsPos = Vector(6.0851, -5.6747, 2.3203)
-SWEP.IronSightsAng = Vector(2.5794, -0.0319, 0)
+SWEP.IronSightsPos = Vector(-8.1, -15, 2.2)
+SWEP.IronSightsAng = Vector(2.7, 0, 0)
 
 SWEP.MultiMode = true

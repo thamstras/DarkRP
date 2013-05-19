@@ -6,7 +6,7 @@ if (CLIENT) then
 	SWEP.PrintName = "Pump Shotgun"
 	SWEP.Author = "Rickster"
 	SWEP.Slot = 2
-	SWEP.SlotPos = 3
+	SWEP.SlotPos = 0
 	SWEP.IconLetter = "k"
 
 	killicon.AddFont("weapon_pumpshotgun", "CSKillIcons", SWEP.IconLetter, Color(255, 80, 0, 255))
@@ -17,7 +17,7 @@ SWEP.Base = "weapon_cs_base2"
 SWEP.Spawnable = true
 SWEP.AdminSpawnable = true
 
-SWEP.ViewModel = "models/weapons/v_shot_m3super90.mdl"
+SWEP.ViewModel = "models/weapons/cstrike/c_shot_m3super90.mdl"
 SWEP.WorldModel = "models/weapons/w_shot_m3super90.mdl"
 
 SWEP.Weight = 5
@@ -42,8 +42,8 @@ SWEP.Secondary.DefaultClip = -1
 SWEP.Secondary.Automatic = false
 SWEP.Secondary.Ammo = "none"
 
-SWEP.IronSightsPos = Vector (5.7515, -3.2305, 3.1898)
-SWEP.IronSightsAng = Vector (0.4467, 0.1261, 0)
+SWEP.IronSightsPos = Vector(-7.63, -10, 3.4)
+SWEP.IronSightsAng = Vector(0.3, 0, 0)
 
 
 function SWEP:Reload()
@@ -97,10 +97,10 @@ function SWEP:Think()
 			end
 		end
 	end
+	self.BaseClass.Think(self)
 end
 
 function SWEP:PrimaryAttack()
-
 	if self.queueattack then return end
 
 	if self.Weapon.reloading then
@@ -109,6 +109,5 @@ function SWEP:PrimaryAttack()
 		return
 	end
 
-	self.BaseClass.PrimaryAttack( self )
-
+	self.BaseClass.PrimaryAttack(self)
 end
