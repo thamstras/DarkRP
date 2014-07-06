@@ -1,3 +1,5 @@
+This Repository is now out of use, and only exists as a historical curiosity. DO NOT USE. IT WILL NEVER BE UPDATED.
+===
 DO NOT COMMIT TO THE MASTER BRANCH. IF YOU DO I WILL HUNT YOU DOWN AND GUT YOU LIKE A FISH!!!
 ======
 READ THIS FOR MODIFYING DARKRP! VERY USEFUL WIKI!
